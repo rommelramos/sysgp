@@ -63,7 +63,8 @@ export default function ConfiguracoesPage() {
   useEffect(() => {
     fetch(`/api/admin/audit-log?page=${page}`)
       .then((r) => r.json())
-      .then((d) => { setLogs(d.data || []); setTotal(d.total || 0); });
+      .then((d) => { setLogs(d.data || []); setTotal(d.total || 0); })
+      .catch(() => {});
   }, [page]);
 
   /* Invalida teste se URL ou senha mudar */
