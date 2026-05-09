@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { stripPassword } from "@/lib/db-url";
 
-/** Verifica se o setup já foi feito (existe pelo menos 1 usuário) */
+/** Verifica se o setup já foi feito e devolve a URL base (sem senha) para pré-preencher */
 export async function GET() {
+  const dbUrl = stripPassword(process.env.DATABASE_URL ?? "");
   try {
     const count = await prisma.usuario.count();
-    return NextResponse.json({ configured: count > 0 });
+    return NextResponse.json({ configured: count > 0, dbUrl });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro ao acessar banco";
-    return NextResponse.json({ configured: false, error: msg }, { status: 500 });
+    return NextResponse.json({ configured: false, dbUrl, error: msg });
   }
 }
 
@@ -40,8 +42,8 @@ export async function POST(req: NextRequest) {
   if (!nomeCompleto || !cpf || !email || !senha) {
     return NextResponse.json({ error: "Todos os campos são obrigatórios" }, { status: 422 });
   }
-  if (senha.length < 8) {
-    return NextResponse.json({ error: "Senha deve ter ao menos 8 caracteres" }, { status: 422 });
+  if (senha.length < 6) {
+    return NextResponse.json({ error: "Senha deve ter ao menos 6 caracteres" }, { status: 422 });
   }
 
   const senhaHash = await bcrypt.hash(senha, 12);
