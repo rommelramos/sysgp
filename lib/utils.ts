@@ -50,6 +50,7 @@ export function truncar(texto: string, limite = 60): string {
 
 export function bigintToString(obj: unknown): unknown {
   if (typeof obj === "bigint") return String(obj);
+  if (obj instanceof Date) return obj.toISOString();
   if (Array.isArray(obj)) return obj.map(bigintToString);
   if (obj && typeof obj === "object") {
     return Object.fromEntries(
