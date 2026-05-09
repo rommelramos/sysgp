@@ -108,7 +108,13 @@ export default function AtividadesPage() {
       ) : (
         <div className="space-y-3">
           {atividades.length === 0 && (
-            <div className="text-center py-12 text-[var(--text-secondary)]">Nenhuma atividade registrada</div>
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className="w-12 h-12 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center">
+                <FileText size={22} className="text-[var(--text-muted)]" />
+              </div>
+              <p className="text-sm font-medium text-[var(--text-secondary)]">Nenhuma atividade registrada</p>
+              <p className="text-xs text-[var(--text-muted)]">Adicione uma atividade a um projeto para começar</p>
+            </div>
           )}
           {atividades.map((a, i) => (
             <motion.div

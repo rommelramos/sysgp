@@ -77,10 +77,11 @@ export function StatCard({ title, value, icon, color = "blue", subtitle, trend }
   return (
     <div
       className={cn(
-        "bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] p-5",
+        "bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[14px] p-5",
+        "shadow-[0_2px_16px_rgba(0,0,0,0.4)]",
         "transition-all duration-200 hover:border-[var(--border-strong)]",
         c.hover,
-        "relative group"
+        "relative"
       )}
     >
       {/* Top-edge accent line — uses pre-resolved class to keep Tailwind safe */}
@@ -98,7 +99,7 @@ export function StatCard({ title, value, icon, color = "blue", subtitle, trend }
             <p className="text-xs text-[var(--text-muted)]">{subtitle}</p>
           )}
           {trend && (
-            <p className={cn("text-xs font-medium", trend.value >= 0 ? "text-[#34D399]" : "text-[#F87171]")}>
+            <p className={cn("text-xs font-medium", trend.value >= 0 ? "text-[var(--accent-success)]" : "text-[var(--accent-danger)]")}>
               {trend.value >= 0 ? "↑" : "↓"} {Math.abs(trend.value)}% {trend.label}
             </p>
           )}

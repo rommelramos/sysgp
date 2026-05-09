@@ -39,7 +39,12 @@ function Avatar({ name }: { name?: string }) {
   );
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const { user, logout } = useAuth();
@@ -48,16 +53,12 @@ export function Sidebar() {
     (item) => !item.perfis || (user && item.perfis.includes(user.perfil))
   );
 
-  return (
-    <motion.aside
-      animate={{ width: collapsed ? 60 : 232 }}
-      transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-      className="flex flex-col h-screen bg-[var(--bg-surface)] border-r border-[var(--border)] relative z-20 flex-shrink-0 select-none"
-    >
+  const sidebarContent = (
+    <>
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 h-16 border-b border-[var(--border)] overflow-hidden">
         <div className="w-8 h-8 shrink-0">
-          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M16 3L29 10.5V21.5L16 29L3 21.5V10.5L16 3Z"
               stroke="#2DD4BF" strokeWidth="1.5" fill="none" strokeLinejoin="round" />
             <path d="M16 3L16 29M3 10.5L29 21.5M29 10.5L3 21.5"
@@ -86,7 +87,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
+      <nav aria-label="Navegação principal" className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {visibleItems.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -94,10 +95,12 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              title={collapsed ? item.label : undefined}
+              aria-label={collapsed ? item.label : undefined}
+              aria-current={active ? "page" : undefined}
+              onClick={onMobileClose}
               className={cn(
-                "flex items-center gap-3 h-10 rounded-[10px] transition-all duration-150 group relative overflow-hidden",
-                collapsed ? "px-0 justify-center" : "px-3",
+                "flex items-center gap-3 h-11 rounded-[10px] transition-all duration-150 group relative overflow-hidden",
+                collapsed ? "px-0 justify-center" : "px-4",
                 active
                   ? "bg-[rgba(79,142,247,0.12)] text-[var(--accent-primary)]"
                   : "text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
@@ -110,9 +113,9 @@ export function Sidebar() {
                 size={17}
                 className={cn(
                   "shrink-0 transition-colors",
-                  active ? "text-[var(--accent-primary)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]",
-                  collapsed && "ml-0"
+                  active ? "text-[var(--accent-primary)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]"
                 )}
+                aria-hidden="true"
               />
               <AnimatePresence initial={false}>
                 {!collapsed && (
@@ -160,14 +163,14 @@ export function Sidebar() {
 
         <button
           onClick={logout}
-          title={collapsed ? "Sair" : undefined}
+          aria-label="Sair do sistema"
           className={cn(
             "flex items-center gap-3 w-full h-9 rounded-[10px] transition-all duration-150",
             "text-[var(--text-muted)] hover:bg-red-500/8 hover:text-red-400",
             collapsed ? "justify-center px-0" : "px-3"
           )}
         >
-          <LogOut size={15} className="shrink-0" />
+          <LogOut size={15} className="shrink-0" aria-hidden="true" />
           <AnimatePresence initial={false}>
             {!collapsed && (
               <motion.span
@@ -183,13 +186,57 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Collapse toggle */}
+      {/* Collapse toggle — desktop only */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3.5 top-[68px] w-7 h-7 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all duration-150 z-30 shadow-sm"
+        aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+        className="absolute -right-3.5 top-[68px] w-7 h-7 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full hidden md:flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all duration-150 shadow-sm z-10"
       >
-        {collapsed ? <ChevronRight size={11} /> : <ChevronLeft size={11} />}
+        {collapsed ? <ChevronRight size={11} aria-hidden="true" /> : <ChevronLeft size={11} aria-hidden="true" />}
       </button>
-    </motion.aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <motion.aside
+        animate={{ width: collapsed ? 60 : 232 }}
+        transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+        aria-label="Menu lateral"
+        className="hidden md:flex flex-col h-screen bg-[var(--bg-surface)] border-r border-[var(--border)] relative flex-shrink-0 select-none shadow-[2px_0_16px_rgba(0,0,0,0.35)]"
+      >
+        {sidebarContent}
+      </motion.aside>
+
+      {/* Mobile drawer */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={onMobileClose}
+              className="fixed inset-0 bg-black/60 z-40 md:hidden"
+              aria-hidden="true"
+            />
+            {/* Drawer */}
+            <motion.aside
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+              aria-label="Menu lateral"
+              className="fixed inset-y-0 left-0 w-[260px] flex flex-col bg-[var(--bg-surface)] border-r border-[var(--border)] z-50 select-none shadow-[4px_0_24px_rgba(0,0,0,0.5)] md:hidden"
+            >
+              {sidebarContent}
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

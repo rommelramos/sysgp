@@ -109,12 +109,13 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* E-mail */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-semibold text-[var(--text-secondary)] tracking-[0.08em] uppercase">
+              <label htmlFor="login-email" className="block text-[11px] font-semibold text-[var(--text-secondary)] tracking-[0.08em] uppercase">
                 E-mail
               </label>
               <div className="relative flex items-center">
-                <Mail size={15} className="absolute left-3.5 text-[var(--text-muted)] pointer-events-none z-10" />
+                <Mail size={15} className="absolute left-3.5 text-[var(--text-muted)] pointer-events-none z-10" aria-hidden="true" />
                 <input
+                  id="login-email"
                   type="email"
                   placeholder="seu@email.com"
                   value={email}
@@ -128,12 +129,13 @@ export default function LoginPage() {
 
             {/* Senha */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-semibold text-[var(--text-secondary)] tracking-[0.08em] uppercase">
+              <label htmlFor="login-senha" className="block text-[11px] font-semibold text-[var(--text-secondary)] tracking-[0.08em] uppercase">
                 Senha
               </label>
               <div className="relative flex items-center">
-                <Lock size={15} className="absolute left-3.5 text-[var(--text-muted)] pointer-events-none z-10" />
+                <Lock size={15} className="absolute left-3.5 text-[var(--text-muted)] pointer-events-none z-10" aria-hidden="true" />
                 <input
+                  id="login-senha"
                   type={showSenha ? "text" : "password"}
                   placeholder="••••••••"
                   value={senha}
@@ -145,10 +147,10 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowSenha(!showSenha)}
-                  tabIndex={-1}
+                  aria-label={showSenha ? "Ocultar senha" : "Mostrar senha"}
                   className="absolute right-3.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors z-10"
                 >
-                  {showSenha ? <EyeOff size={15} /> : <Eye size={15} />}
+                  {showSenha ? <EyeOff size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
                 </button>
               </div>
             </div>

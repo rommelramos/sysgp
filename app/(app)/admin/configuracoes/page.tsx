@@ -43,6 +43,7 @@ export default function ConfiguracoesPage() {
 
   /* ── Auditoria ────────────────────────────────────────────────── */
   const [logs, setLogs] = useState<AuditEntry[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
 
@@ -61,10 +62,12 @@ export default function ConfiguracoesPage() {
 
   /* Carrega auditoria */
   useEffect(() => {
+    setLoadingLogs(true);
     fetch(`/api/admin/audit-log?page=${page}`)
       .then((r) => r.json())
       .then((d) => { setLogs(d.data || []); setTotal(d.total || 0); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingLogs(false));
   }, [page]);
 
   /* Invalida teste se URL ou senha mudar */
@@ -322,12 +325,21 @@ export default function ConfiguracoesPage() {
           </div>
 
           <div className="overflow-y-auto max-h-[420px] divide-y divide-[var(--border)]">
-            {logs.length === 0 && (
+            {loadingLogs && Array(4).fill(0).map((_, i) => (
+              <div key={i} className="px-5 py-3 space-y-2">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="skeleton h-3 w-24 rounded" />
+                  <div className="skeleton h-3 w-20 rounded" />
+                </div>
+                <div className="skeleton h-2.5 w-48 rounded" />
+              </div>
+            ))}
+            {!loadingLogs && logs.length === 0 && (
               <p className="px-6 py-10 text-center text-[13px] text-[var(--text-muted)]">
                 Nenhum registro encontrado.
               </p>
             )}
-            {logs.map((log) => (
+            {!loadingLogs && logs.map((log) => (
               <div key={log.id} className="px-5 py-3 hover:bg-[var(--bg-elevated)] transition-colors">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[12px] font-semibold text-[var(--text-primary)]">{log.acao}</span>

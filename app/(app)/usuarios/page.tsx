@@ -2,15 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Plus, Search, RefreshCw } from "lucide-react";
+import { Plus, Search, RefreshCw, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Select } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { formatarData, mascaraCPFInput, calcularForcaSenha } from "@/lib/utils";
-import { useAuth } from "@/contexts/AuthContext";
-import { Eye, EyeOff } from "lucide-react";
 
 interface Usuario {
   id: string;
@@ -43,7 +41,6 @@ export default function UsuariosPage() {
   const [showSenha, setShowSenha] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
-  const { user } = useAuth();
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -64,18 +61,23 @@ export default function UsuariosPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    const res = await fetch("/api/usuarios", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    setSubmitting(false);
-    if (!res.ok) { toast("error", data.error || "Erro ao criar usuário"); return; }
-    toast("success", "Usuário criado com sucesso!");
-    setModalOpen(false);
-    setForm({ nomeCompleto: "", cpf: "", rg: "", dataNasc: "", email: "", senha: "", confirmarSenha: "", perfil: "MEMBRO", supervisorId: "" });
-    carregar();
+    try {
+      const res = await fetch("/api/usuarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast("error", data.error || "Erro ao criar usuário"); return; }
+      toast("success", "Usuário criado com sucesso!");
+      setModalOpen(false);
+      setForm({ nomeCompleto: "", cpf: "", rg: "", dataNasc: "", email: "", senha: "", confirmarSenha: "", perfil: "MEMBRO", supervisorId: "" });
+      carregar();
+    } catch {
+      toast("error", "Erro de comunicação com o servidor");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function toggleAtivo(id: string, ativo: boolean) {

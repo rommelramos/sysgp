@@ -121,7 +121,13 @@ export default function ProjetosPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {projetos.length === 0 && (
-            <p className="col-span-3 text-center py-12 text-[var(--text-secondary)]">Nenhum projeto encontrado</p>
+            <div className="col-span-3 flex flex-col items-center justify-center py-20 gap-3">
+              <div className="w-12 h-12 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center">
+                <FolderKanban size={22} className="text-[var(--text-muted)]" />
+              </div>
+              <p className="text-sm font-medium text-[var(--text-secondary)]">Nenhum projeto encontrado</p>
+              <p className="text-xs text-[var(--text-muted)]">Crie um novo projeto para começar</p>
+            </div>
           )}
           {projetos.map((p, i) => (
             <motion.div
