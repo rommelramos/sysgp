@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Perfil {
+  MEMBRO
+  SUPERVISOR
+  ADMINISTRADOR
+}
+
+enum StatusProjeto {
+  EM_ANDAMENTO
+  CONCLUIDO
+  SUSPENSO
+}
+
+enum StatusVinculo {
+  ATIVO
+  ENCERRADO
+  SUSPENSO
+}
+
+enum OrigemDocumento {
+  UPLOAD
+  PASTE
+}
+
+model Usuario {
+  id           BigInt    @id @default(autoincrement())
+  nomeCompleto String    @map("nome_completo") @db.VarChar(255)
+  cpf          String    @unique @db.VarChar(14)
+  rg           String?   @db.VarChar(20)
+  dataNasc     DateTime? @map("data_nasc") @db.Date
+  email        String    @unique @db.VarChar(255)
+  senhaHash    String    @map("senha_hash") @db.VarChar(255)
+  perfil       Perfil    @default(MEMBRO)
+  supervisorId BigInt?   @map("supervisor_id")
+  ativo        Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  supervisor      Usuario?             @relation("SupervisaoUsuarios", fields: [supervisorId], references: [id])
+  supervisionados Usuario[]            @relation("SupervisaoUsuarios")
+  projetosCoord   Projeto[]            @relation("CoordenadorProjeto")
+  membros         ProjetoMembro[]
+  atividades      Atividade[]
+  refreshTokens   RefreshToken[]
+  resetTokens     PasswordResetToken[]
+  auditLogs       AuditLog[]
+
+  @@map("usuarios")
+}
+
+model Projeto {
+  id              BigInt        @id @default(autoincrement())
+  titulo          String        @db.VarChar(255)
+  descricao       String?       @db.Text
+  areaTematica    String?       @map("area_tematica") @db.VarChar(255)
+  dataInicio      DateTime?     @map("data_inicio") @db.Date
+  dataFimPrevista DateTime?     @map("data_fim_prevista") @db.Date
+  status          StatusProjeto @default(EM_ANDAMENTO)
+  coordenadorId   BigInt        @map("coordenador_id")
+  arquivoPath     String?       @map("arquivo_path") @db.VarChar(512)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  coordenador Usuario         @relation("CoordenadorProjeto", fields: [coordenadorId], references: [id])
+  membros     ProjetoMembro[]
+  atividades  Atividade[]
+
+  @@map("projetos")
+}
+
+model ProjetoMembro {
+  id                BigInt        @id @default(autoincrement())
+  projetoId         BigInt        @map("projeto_id")
+  usuarioId         BigInt        @map("usuario_id")
+  funcao            String?       @db.VarChar(255)
+  isCoordenador     Boolean       @default(false) @map("is_coordenador")
+  isBolsista        Boolean       @default(false) @map("is_bolsista")
+  valorBolsa        Decimal?      @map("valor_bolsa") @db.Decimal(10, 2)
+  duracaoMeses      Int?          @map("duracao_meses")
+  dataInicioBolsa   DateTime?     @map("data_inicio_bolsa") @db.Date
+  dataFimBolsa      DateTime?     @map("data_fim_bolsa") @db.Date
+  planoTrabalhoPath String?       @map("plano_trabalho_path") @db.VarChar(512)
+  statusVinculo     StatusVinculo @default(ATIVO) @map("status_vinculo")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  projeto Projeto @relation(fields: [projetoId], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@unique([projetoId, usuarioId])
+  @@map("projeto_membros")
+}
+
+model Atividade {
+  id         BigInt    @id @default(autoincrement())
+  projetoId  BigInt    @map("projeto_id")
+  usuarioId  BigInt    @map("usuario_id")
+  titulo     String    @db.VarChar(255)
+  descricao  String?   @db.LongText
+  dataInicio DateTime? @map("data_inicio") @db.Date
+  dataFim    DateTime? @map("data_fim") @db.Date
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  projeto    Projeto              @relation(fields: [projetoId], references: [id])
+  usuario    Usuario              @relation(fields: [usuarioId], references: [id])
+  documentos AtividadeDocumento[]
+
+  @@map("atividades")
+}
+
+model AtividadeDocumento {
+  id           BigInt          @id @default(autoincrement())
+  atividadeId  BigInt          @map("atividade_id")
+  nomeOriginal String          @map("nome_original") @db.VarChar(255)
+  nomeArquivo  String          @map("nome_arquivo") @db.VarChar(255)
+  caminho      String          @db.VarChar(512)
+  mimeType     String          @map("mime_type") @db.VarChar(100)
+  tamanhoBytes Int             @map("tamanho_bytes")
+  origem       OrigemDocumento @default(UPLOAD)
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  atividade Atividade @relation(fields: [atividadeId], references: [id], onDelete: Cascade)
+
+  @@map("atividade_documentos")
+}
+
+model PasswordResetToken {
+  id        BigInt   @id @default(autoincrement())
+  usuarioId BigInt   @map("usuario_id")
+  tokenHash String   @map("token_hash") @db.VarChar(255)
+  expiraEm  DateTime @map("expira_em")
+  usado     Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("password_reset_tokens")
+}
+
+model RefreshToken {
+  id        BigInt   @id @default(autoincrement())
+  usuarioId BigInt   @map("usuario_id")
+  tokenHash String   @map("token_hash") @db.VarChar(255)
+  expiraEm  DateTime @map("expira_em")
+  revogado  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  usuarioId  BigInt?  @map("usuario_id")
+  acao       String   @db.VarChar(100)
+  entidade   String?  @db.VarChar(100)
+  entidadeId BigInt?  @map("entidade_id")
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  detalhes   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@map("audit_log")
+}
+
+model ConfiguracaoSistema {
+  id         Int      @id @default(1)
+  dbHost     String?  @map("db_host") @db.VarChar(255)
+  dbPorta    Int      @default(3306) @map("db_porta")
+  dbNome     String?  @map("db_nome") @db.VarChar(255)
+  dbUsuario  String?  @map("db_usuario") @db.VarChar(255)
+  dbSenhaEnc String?  @map("db_senha_enc") @db.Text
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("configuracao_sistema")
+}

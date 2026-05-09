@@ -1,26 +1,179 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-primary: #0A0E1A;
+  --bg-surface: #111827;
+  --bg-elevated: #1A2235;
+  --accent-primary: #2563EB;
+  --accent-secondary: #06B6D4;
+  --accent-success: #10B981;
+  --accent-warning: #F59E0B;
+  --accent-danger: #EF4444;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --border: #1E293B;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-secondary: var(--accent-secondary);
+  --color-accent-success: var(--accent-success);
+  --color-accent-warning: var(--accent-warning);
+  --color-accent-danger: var(--accent-danger);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border: var(--border);
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Selection */
+::selection {
+  background: rgba(37, 99, 235, 0.3);
+  color: var(--text-primary);
+}
+
+/* Focus visible */
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Card base */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: box-shadow 150ms ease;
+}
+.card:hover {
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.15);
+}
+
+/* Badge status */
+.badge-ativo {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+.badge-encerrado {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+}
+.badge-suspenso {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+.badge-em-andamento {
+  background: rgba(37, 99, 235, 0.15);
+  color: #60a5fa;
+}
+.badge-concluido {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+/* Input base */
+input, textarea, select {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 8px;
+}
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+/* Glassmorphism */
+.glass {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(17, 24, 39, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Particles animation for login */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.3; }
+  50% { transform: translateY(-20px) rotate(180deg); opacity: 0.6; }
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Sidebar transition */
+.sidebar-transition {
+  transition: width 200ms ease, transform 200ms ease;
+}
+
+/* Table zebra */
+.table-row-even {
+  background: transparent;
+}
+.table-row-odd {
+  background: rgba(26, 34, 53, 0.5);
+}
+
+/* Button primary */
+.btn-primary {
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
+  color: white;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+.btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: translateY(0);
 }
