@@ -10,7 +10,6 @@ import { Input, Textarea, Select } from "@/components/ui/Input";
 import { FileUpload, UploadedFile } from "@/components/shared/FileUpload";
 import { useToast } from "@/components/ui/Toast";
 import { formatarData } from "@/lib/utils";
-import { prisma } from "@/lib/prisma";
 
 interface Atividade {
   id: string;
@@ -37,11 +36,16 @@ export default function AtividadesPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/atividades?page=${page}`);
-    const data = await res.json();
-    setAtividades(data.data || []);
-    setTotal(data.total || 0);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/atividades?page=${page}`);
+      const data = await res.json();
+      setAtividades(data.data || []);
+      setTotal(data.total || 0);
+    } catch {
+      setAtividades([]);
+    } finally {
+      setLoading(false);
+    }
   }, [page]);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -49,7 +53,8 @@ export default function AtividadesPage() {
   useEffect(() => {
     fetch("/api/projetos?pageSize=100")
       .then((r) => r.json())
-      .then((d) => setProjetos(d.data || []));
+      .then((d) => setProjetos(d.data || []))
+      .catch(() => {});
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {

@@ -48,11 +48,16 @@ export default function ProjetosPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/projetos?page=${page}&busca=${encodeURIComponent(busca)}`);
-    const data = await res.json();
-    setProjetos(data.data || []);
-    setTotal(data.total || 0);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/projetos?page=${page}&busca=${encodeURIComponent(busca)}`);
+      const data = await res.json();
+      setProjetos(data.data || []);
+      setTotal(data.total || 0);
+    } catch {
+      setProjetos([]);
+    } finally {
+      setLoading(false);
+    }
   }, [page, busca]);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -61,7 +66,8 @@ export default function ProjetosPage() {
     if (user?.perfil === "ADMINISTRADOR") {
       fetch("/api/usuarios?perfil=SUPERVISOR&pageSize=100")
         .then((r) => r.json())
-        .then((d) => setSupervisores(d.data || []));
+        .then((d) => setSupervisores(d.data || []))
+        .catch(() => {});
     }
   }, [user]);
 

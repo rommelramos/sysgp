@@ -19,18 +19,16 @@ export async function GET(req: NextRequest) {
   const perfil = searchParams.get("perfil") || undefined;
 
   const where = {
-    AND: [
-      busca
-        ? {
-            OR: [
-              { nomeCompleto: { contains: busca } },
-              { email: { contains: busca } },
-              { cpf: { contains: busca } },
-            ],
-          }
-        : {},
-      perfil ? { perfil: perfil as "MEMBRO" | "SUPERVISOR" | "ADMINISTRADOR" } : {},
-    ],
+    ...(busca
+      ? {
+          OR: [
+            { nomeCompleto: { contains: busca } },
+            { email: { contains: busca } },
+            { cpf: { contains: busca } },
+          ],
+        }
+      : {}),
+    ...(perfil ? { perfil: perfil as "MEMBRO" | "SUPERVISOR" | "ADMINISTRADOR" } : {}),
   };
 
   const [total, usuarios] = await Promise.all([

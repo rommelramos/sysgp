@@ -47,11 +47,16 @@ export default function UsuariosPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/usuarios?page=${page}&busca=${encodeURIComponent(busca)}`);
-    const data = await res.json();
-    setUsuarios(data.data || []);
-    setTotal(data.total || 0);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/usuarios?page=${page}&busca=${encodeURIComponent(busca)}`);
+      const data = await res.json();
+      setUsuarios(data.data || []);
+      setTotal(data.total || 0);
+    } catch {
+      setUsuarios([]);
+    } finally {
+      setLoading(false);
+    }
   }, [page, busca]);
 
   useEffect(() => { carregar(); }, [carregar]);
