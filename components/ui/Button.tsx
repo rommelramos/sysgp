@@ -14,23 +14,25 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = "primary", size = "md", loading, icon, children, className, disabled, ...props }, ref) => {
     const base =
-      "inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] disabled:opacity-50 disabled:cursor-not-allowed select-none";
+      "inline-flex items-center justify-center gap-2 font-semibold rounded-[10px] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)] disabled:opacity-50 disabled:cursor-not-allowed select-none font-[family-name:var(--font-display)] tracking-tight";
 
     const variants = {
       primary:
-        "bg-gradient-to-r from-[#2563EB] to-[#1D4ED8] text-white hover:opacity-90 hover:-translate-y-px active:translate-y-0",
+        "bg-gradient-to-b from-[#5B9BFF] to-[#2563EB] text-white shadow-[0_2px_12px_rgba(79,142,247,0.35)] hover:shadow-[0_4px_20px_rgba(79,142,247,0.45)] hover:-translate-y-px active:translate-y-0 active:shadow-[0_1px_6px_rgba(79,142,247,0.25)]",
       secondary:
-        "bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]",
-      danger: "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20",
-      ghost: "text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]",
+        "bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]",
+      danger:
+        "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/18 hover:border-red-400/30",
+      ghost:
+        "text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]",
       outline:
-        "border border-[var(--accent-primary)] text-[var(--accent-primary)] hover:bg-[var(--accent-primary)] hover:text-white",
+        "border border-[var(--accent-primary)] text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/10",
     };
 
     const sizes = {
-      sm: "text-xs px-3 py-1.5",
-      md: "text-sm px-4 py-2",
-      lg: "text-base px-6 py-3",
+      sm: "text-xs px-3 py-1.5 gap-1.5",
+      md: "text-sm px-4 py-2.5",
+      lg: "text-sm px-6 py-3",
     };
 
     return (
