@@ -1,9 +1,10 @@
 import { PrismaClient } from "@/app/generated/prisma";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import { envConnectionUrl } from "@/lib/db-url";
 
 function createPrismaClient() {
-  const databaseUrl = process.env.DATABASE_URL || "mysql://localhost/sysgp";
-  const adapter = new PrismaMariaDb(databaseUrl);
+  const url = envConnectionUrl();
+  const adapter = new PrismaMariaDb(url);
   return new PrismaClient({ adapter });
 }
 

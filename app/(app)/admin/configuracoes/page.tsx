@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Database, Shield, CheckCircle, AlertTriangle, RefreshCw, Plus, Terminal } from "lucide-react";
-import { Input } from "@/components/ui/Input";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Database, Shield, CheckCircle, AlertTriangle,
+  RefreshCw, Plus, Terminal, Link2, KeyRound,
+  Eye, EyeOff, Loader2, Info,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { formatarData } from "@/lib/utils";
-import { AnimatePresence, motion } from "framer-motion";
 
 interface AuditEntry {
   id: string;
@@ -23,78 +26,100 @@ interface ConfirmModal {
 }
 
 export default function ConfiguracoesPage() {
-  const [config, setConfig] = useState({ host: "", porta: "3306", nome: "", usuario: "", senha: "" });
-  const [testandoConexao, setTestandoConexao] = useState(false);
-  const [salvando, setSalvando] = useState(false);
+  /* ── Conexão ──────────────────────────────────────────────────── */
+  const [url, setUrl] = useState("");
+  const [senha, setSenha] = useState("");
+  const [showSenha, setShowSenha] = useState(false);
+  const [hasPassword, setHasPassword] = useState(false);   // DB_PASSWORD está configurado no servidor?
+  const [testando, setTestando] = useState(false);
   const [testeOk, setTesteOk] = useState<boolean | null>(null);
-  const [logs, setLogs] = useState<AuditEntry[]>([]);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [testeMsg, setTesteMsg] = useState("");
+  const [salvando, setSalvando] = useState(false);
+
+  /* ── Schema ───────────────────────────────────────────────────── */
   const [modal, setModal] = useState<ConfirmModal | null>(null);
   const [executandoSchema, setExecutandoSchema] = useState(false);
   const [schemaLog, setSchemaLog] = useState<string[]>([]);
+
+  /* ── Auditoria ────────────────────────────────────────────────── */
+  const [logs, setLogs] = useState<AuditEntry[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+
   const toast = useToast();
 
+  /* Carrega config atual */
+  useEffect(() => {
+    fetch("/api/admin/configuracoes")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.url) setUrl(d.url);
+        setHasPassword(d.hasPassword ?? false);
+      })
+      .catch(() => {});
+  }, []);
+
+  /* Carrega auditoria */
   useEffect(() => {
     fetch(`/api/admin/audit-log?page=${page}`)
       .then((r) => r.json())
       .then((d) => { setLogs(d.data || []); setTotal(d.total || 0); });
   }, [page]);
 
-  useEffect(() => {
-    fetch("/api/admin/configuracoes")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.host) setConfig((c) => ({ ...c, ...d }));
-      });
-  }, []);
+  /* Invalida teste se URL ou senha mudar */
+  function handleUrlChange(v: string) { setUrl(v); setTesteOk(null); setTesteMsg(""); }
+  function handleSenhaChange(v: string) { setSenha(v); setTesteOk(null); setTesteMsg(""); }
 
+  /* Testa conexão */
   async function testarConexao() {
-    setTestandoConexao(true);
+    setTestando(true);
     setTesteOk(null);
+    setTesteMsg("");
     try {
       const res = await fetch("/api/admin/configuracoes/testar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
+        body: JSON.stringify({ url, senha }),
       });
       const data = await res.json();
       setTesteOk(data.ok === true);
+      setTesteMsg(data.ok ? "Conexão bem-sucedida" : (data.error ?? "Falha na conexão"));
       if (data.ok) toast("success", "Conexão bem-sucedida!");
-      else toast("error", data.error || "Falha na conexão");
+      else toast("error", data.error ?? "Falha na conexão");
     } catch {
       setTesteOk(false);
+      setTesteMsg("Erro ao comunicar com o servidor");
       toast("error", "Erro ao testar conexão");
     } finally {
-      setTestandoConexao(false);
+      setTestando(false);
     }
   }
 
-  async function salvarConfig(e: React.FormEvent) {
-    e.preventDefault();
-    if (!testeOk) { toast("warning", "Teste a conexão antes de salvar"); return; }
+  /* Salva URL (sem senha) */
+  async function salvarUrl() {
     setSalvando(true);
     const res = await fetch("/api/admin/configuracoes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config),
+      body: JSON.stringify({ url }),
     });
     setSalvando(false);
-    if (res.ok) toast("success", "Configurações salvas!");
+    if (res.ok) toast("success", "String de conexão salva!");
     else toast("error", "Erro ao salvar");
   }
 
+  /* Abre modal de schema */
   function abrirModal(acao: "CRIAR" | "RECRIAR") {
     if (!testeOk) { toast("warning", "Teste a conexão antes de prosseguir"); return; }
     setModal({ acao, confirmText: "" });
     setSchemaLog([]);
   }
 
+  /* Executa DDL */
   async function executarSchema() {
     if (!modal) return;
     if (modal.acao === "RECRIAR" && modal.confirmText !== "CONFIRMAR") {
-      toast("error", 'Digite "CONFIRMAR" para prosseguir');
-      return;
+      toast("error", 'Digite "CONFIRMAR" para prosseguir'); return;
     }
     setExecutandoSchema(true);
     setSchemaLog([]);
@@ -102,127 +127,232 @@ export default function ConfiguracoesPage() {
       const res = await fetch("/api/admin/configuracoes/schema", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...config, acao: modal.acao, confirmacao: modal.confirmText }),
+        body: JSON.stringify({ acao: modal.acao, url, senha, confirmacao: modal.confirmText }),
       });
       const data = await res.json();
       if (data.executados?.length) setSchemaLog(data.executados);
-      if (data.erros?.length) {
-        data.erros.forEach((e: string) => toast("error", e.slice(0, 120)));
-      }
+      if (data.erros?.length) data.erros.forEach((e: string) => toast("error", e.slice(0, 120)));
       if (data.ok) {
-        toast("success", modal.acao === "RECRIAR" ? "Tabelas recriadas com sucesso!" : "Tabelas criadas com sucesso!");
+        toast("success", modal.acao === "RECRIAR" ? "Tabelas recriadas!" : "Tabelas criadas!");
         setModal(null);
       } else if (!data.erros?.length) {
-        toast("error", data.error || "Erro ao executar schema");
+        toast("error", data.error ?? "Erro ao executar schema");
       }
     } catch {
-      toast("error", "Erro de comunicação com o servidor");
+      toast("error", "Erro de comunicação");
     } finally {
       setExecutandoSchema(false);
     }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-4">
       <div>
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Configurações</h1>
-        <p className="text-sm text-[var(--text-secondary)]">Painel administrativo do sistema</p>
+        <p className="text-sm text-[var(--text-secondary)] mt-1">Painel administrativo do sistema</p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* DB Config */}
-        <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl p-6 space-y-5">
-          <div className="flex items-center gap-2">
-            <Database size={18} className="text-[var(--accent-primary)]" />
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">Configuração do Banco de Dados</h2>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+
+        {/* ── Conexão com o Banco ─────────────────────────────────── */}
+        <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] shadow-[var(--shadow-card)] overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-[var(--border)]">
+            <div className="w-7 h-7 rounded-[8px] bg-[var(--accent-primary)]/10 flex items-center justify-center">
+              <Database size={14} className="text-[var(--accent-primary)]" />
+            </div>
+            <h2 className="text-[15px] font-bold text-[var(--text-primary)]">
+              Conexão com o Banco de Dados
+            </h2>
           </div>
 
-          <form onSubmit={salvarConfig} className="space-y-4">
-            <Input label="Host / Servidor" value={config.host} onChange={(e) => { setTesteOk(null); setConfig(c => ({ ...c, host: e.target.value })); }} placeholder="localhost" required />
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Porta" type="number" value={config.porta} onChange={(e) => { setTesteOk(null); setConfig(c => ({ ...c, porta: e.target.value })); }} />
-              <Input label="Nome do Banco" value={config.nome} onChange={(e) => { setTesteOk(null); setConfig(c => ({ ...c, nome: e.target.value })); }} required />
-            </div>
-            <Input label="Usuário" value={config.usuario} onChange={(e) => { setTesteOk(null); setConfig(c => ({ ...c, usuario: e.target.value })); }} required />
-            <Input label="Senha" type="password" value={config.senha} onChange={(e) => { setTesteOk(null); setConfig(c => ({ ...c, senha: e.target.value })); }} />
+          <div className="p-6 space-y-5">
 
-            <div className="flex items-center gap-3 pt-1">
-              <Button type="button" variant="secondary" onClick={testarConexao} loading={testandoConexao}>
-                Testar Conexão
-              </Button>
-              {testeOk === true && <span className="flex items-center gap-1 text-emerald-400 text-sm"><CheckCircle size={14} />Conectado</span>}
-              {testeOk === false && <span className="text-red-400 text-sm">Falha na conexão</span>}
+            {/* String de conexão */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-[var(--text-secondary)] tracking-widest uppercase flex items-center gap-1.5">
+                <Link2 size={11} />
+                String de Conexão
+              </label>
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => handleUrlChange(e.target.value)}
+                placeholder="mysql://usuario@host:3306/nome_do_banco"
+                spellCheck={false}
+                className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-[10px] px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[var(--accent-primary)] focus:ring-[3px] focus:ring-[rgba(79,142,247,0.18)] transition-all"
+              />
+              <p className="text-[11px] text-[var(--text-muted)] flex items-start gap-1.5">
+                <Info size={11} className="shrink-0 mt-0.5" />
+                Não inclua a senha na URL. Use o campo abaixo.
+              </p>
             </div>
 
-            <Button type="submit" loading={salvando} className="w-full">Salvar Configurações</Button>
-          </form>
-
-          {/* Schema management */}
-          <div className="border-t border-[var(--border)] pt-5 space-y-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Terminal size={16} className="text-[var(--accent-secondary)]" />
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Gerenciamento do Esquema</h3>
+            {/* Senha */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-[var(--text-secondary)] tracking-widest uppercase flex items-center gap-1.5">
+                <KeyRound size={11} />
+                Senha do Banco
+                {hasPassword && (
+                  <span className="text-[10px] font-medium text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded-full px-2 py-0.5 normal-case tracking-normal">
+                    configurada via env
+                  </span>
+                )}
+              </label>
+              <div className="relative">
+                <input
+                  type={showSenha ? "text" : "password"}
+                  value={senha}
+                  onChange={(e) => handleSenhaChange(e.target.value)}
+                  placeholder={hasPassword ? "Deixe em branco para usar DB_PASSWORD do servidor" : "Senha do banco de dados"}
+                  className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-[10px] pl-3 pr-10 py-2.5 text-sm focus:outline-none focus:border-[var(--accent-primary)] focus:ring-[3px] focus:ring-[rgba(79,142,247,0.18)] transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSenha((s) => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+                  tabIndex={-1}
+                >
+                  {showSenha ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+              <p className="text-[11px] text-[var(--text-muted)] flex items-start gap-1.5">
+                <Info size={11} className="shrink-0 mt-0.5" />
+                A senha <strong>nunca</strong> é salva no banco de dados — use a variável de ambiente{" "}
+                <code className="text-[var(--accent-secondary)] font-mono">DB_PASSWORD</code> no servidor.
+              </p>
             </div>
-            <p className="text-xs text-[var(--text-secondary)]">
-              Cria ou recria as tabelas do sistema no banco configurado acima. Teste a conexão antes de prosseguir.
-            </p>
-            <div className="flex gap-3">
+
+            {/* Testar + status */}
+            <div className="flex items-center gap-3">
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => abrirModal("CRIAR")}
-                className="flex-1 flex items-center justify-center gap-2"
+                onClick={testarConexao}
+                loading={testando}
+                icon={<Database size={13} />}
               >
-                <Plus size={14} />
-                Criar Tabelas
+                Testar Conexão
               </Button>
-              <Button
-                type="button"
-                onClick={() => abrirModal("RECRIAR")}
-                className="flex-1 flex items-center justify-center gap-2 !bg-red-600/20 !border-red-600/40 !text-red-400 hover:!bg-red-600/30"
-              >
-                <RefreshCw size={14} />
-                Recriar Tabelas
-              </Button>
+
+              <AnimatePresence mode="wait">
+                {testando && (
+                  <motion.span key="testing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="text-[12px] text-[var(--text-muted)] flex items-center gap-1.5">
+                    <Loader2 size={12} className="animate-spin" /> Conectando…
+                  </motion.span>
+                )}
+                {!testando && testeOk === true && (
+                  <motion.span key="ok" initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+                    className="text-[12px] text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle size={13} /> {testeMsg}
+                  </motion.span>
+                )}
+                {!testando && testeOk === false && (
+                  <motion.span key="err" initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+                    className="text-[12px] text-red-400 flex items-center gap-1.5 max-w-xs truncate" title={testeMsg}>
+                    <AlertTriangle size={13} className="shrink-0" /> {testeMsg}
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </div>
-            <p className="text-xs text-amber-400/80 flex items-start gap-1.5">
-              <AlertTriangle size={13} className="shrink-0 mt-0.5" />
-              <span><strong>Recriar</strong> apaga todas as tabelas e dados existentes. Esta operação é irreversível.</span>
-            </p>
+
+            {/* Salvar URL */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              loading={salvando}
+              onClick={salvarUrl}
+              className="w-full"
+            >
+              Salvar string de conexão
+            </Button>
+
+            {/* Separador + gerenciar schema */}
+            <div className="border-t border-[var(--border)] pt-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <Terminal size={14} className="text-[var(--accent-secondary)]" />
+                <h3 className="text-[13px] font-bold text-[var(--text-primary)]">Gerenciamento do Esquema</h3>
+              </div>
+              <p className="text-[12px] text-[var(--text-muted)]">
+                Cria ou recria as tabelas do sistema no banco acima. Teste a conexão antes de prosseguir.
+              </p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => abrirModal("CRIAR")}
+                  icon={<Plus size={13} />}
+                  disabled={!testeOk}
+                >
+                  Criar Tabelas
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => abrirModal("RECRIAR")}
+                  disabled={!testeOk}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-[10px] text-sm font-semibold border transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed bg-red-500/8 border-red-500/25 text-red-400 hover:bg-red-500/15 hover:border-red-400/40"
+                >
+                  <RefreshCw size={13} />
+                  Recriar Tabelas
+                </button>
+              </div>
+
+              <p className="text-[11px] text-amber-400/70 flex items-start gap-1.5">
+                <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+                <span><strong>Recriar</strong> apaga todos os dados permanentemente.</span>
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Audit Log */}
-        <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-          <div className="flex items-center gap-2 px-6 py-4 border-b border-[var(--border)]">
-            <Shield size={18} className="text-[var(--accent-secondary)]" />
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">Log de Auditoria</h2>
-            <span className="ml-auto text-xs text-[var(--text-secondary)]">{total} registros</span>
+        {/* ── Log de Auditoria ────────────────────────────────────── */}
+        <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] shadow-[var(--shadow-card)] overflow-hidden">
+          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-[var(--border)]">
+            <div className="w-7 h-7 rounded-[8px] bg-[var(--accent-secondary)]/10 flex items-center justify-center">
+              <Shield size={14} className="text-[var(--accent-secondary)]" />
+            </div>
+            <h2 className="text-[15px] font-bold text-[var(--text-primary)]">Log de Auditoria</h2>
+            <span className="ml-auto text-[11px] text-[var(--text-muted)] bg-[var(--bg-elevated)] rounded-full px-2.5 py-0.5 border border-[var(--border)]">
+              {total} registros
+            </span>
           </div>
-          <div className="overflow-y-auto max-h-80 divide-y divide-[var(--border)]">
+
+          <div className="overflow-y-auto max-h-[420px] divide-y divide-[var(--border)]">
+            {logs.length === 0 && (
+              <p className="px-6 py-10 text-center text-[13px] text-[var(--text-muted)]">
+                Nenhum registro encontrado.
+              </p>
+            )}
             {logs.map((log) => (
-              <div key={log.id} className="px-4 py-2.5 hover:bg-[var(--bg-elevated)] transition-colors">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--text-primary)]">{log.acao}</span>
-                  <span className="text-xs font-mono text-[var(--text-secondary)]">{formatarData(log.createdAt)}</span>
+              <div key={log.id} className="px-5 py-3 hover:bg-[var(--bg-elevated)] transition-colors">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12px] font-semibold text-[var(--text-primary)]">{log.acao}</span>
+                  <span className="text-[11px] font-mono text-[var(--text-muted)]">{formatarData(log.createdAt)}</span>
                 </div>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  {log.usuario?.nomeCompleto || "Sistema"} • {log.entidade || "—"} • {log.ipAddress || "—"}
+                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                  {log.usuario?.nomeCompleto ?? "Sistema"}
+                  {log.entidade && <> · {log.entidade}</>}
+                  {log.ipAddress && <> · {log.ipAddress}</>}
                 </p>
               </div>
             ))}
-            {logs.length === 0 && (
-              <p className="px-6 py-8 text-center text-xs text-[var(--text-secondary)]">Nenhum registro encontrado</p>
-            )}
           </div>
-          <div className="flex gap-2 px-4 py-3 border-t border-[var(--border)]">
-            <Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-            <Button variant="ghost" size="sm" onClick={() => setPage(p => p + 1)}>Próxima</Button>
+
+          <div className="flex gap-2 px-5 py-3 border-t border-[var(--border)]">
+            <Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+              Anterior
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setPage((p) => p + 1)}>
+              Próxima
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Confirmation Modal */}
+      {/* ── Modal confirmação schema ─────────────────────────────── */}
       <AnimatePresence>
         {modal && (
           <motion.div
@@ -236,91 +366,92 @@ export default function ConfiguracoesPage() {
               initial={{ scale: 0.94, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.94, opacity: 0 }}
-              className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5"
+              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+              className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-[18px] shadow-[var(--shadow-lg)] w-full max-w-md p-6 space-y-5"
             >
-              {/* Header */}
+              {/* Cabeçalho */}
               <div className="flex items-start gap-3">
-                <div className={`p-2 rounded-lg shrink-0 ${modal.acao === "RECRIAR" ? "bg-red-500/15" : "bg-blue-500/15"}`}>
+                <div className={`p-2.5 rounded-[10px] shrink-0 ${modal.acao === "RECRIAR" ? "bg-red-500/12 border border-red-500/20" : "bg-[var(--accent-primary)]/10 border border-[var(--accent-primary)]/20"}`}>
                   {modal.acao === "RECRIAR"
-                    ? <AlertTriangle size={20} className="text-red-400" />
-                    : <Plus size={20} className="text-[var(--accent-primary)]" />
-                  }
+                    ? <AlertTriangle size={18} className="text-red-400" />
+                    : <Plus size={18} className="text-[var(--accent-primary)]" />}
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[var(--text-primary)]">
+                  <h3 className="text-[15px] font-bold text-[var(--text-primary)]">
                     {modal.acao === "RECRIAR" ? "Recriar todas as tabelas" : "Criar tabelas do sistema"}
                   </h3>
-                  <p className="text-sm text-[var(--text-secondary)] mt-1">
+                  <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
                     {modal.acao === "RECRIAR"
-                      ? `Banco: ${config.nome} em ${config.host}`
-                      : `Serão criadas apenas as tabelas que ainda não existem em ${config.nome}.`
-                    }
+                      ? "Esta ação apaga e recria todas as tabelas."
+                      : "Serão criadas apenas tabelas que ainda não existem."}
                   </p>
                 </div>
               </div>
 
-              {/* Warning for RECRIAR */}
+              {/* Alerta destrutivo */}
               {modal.acao === "RECRIAR" && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 space-y-2">
-                  <p className="text-sm font-semibold text-red-400 flex items-center gap-2">
-                    <AlertTriangle size={15} />
-                    ATENÇÃO — Esta ação é irreversível
+                <div className="bg-red-500/8 border border-red-500/20 rounded-[12px] p-4 space-y-2">
+                  <p className="text-[12px] font-bold text-red-400 flex items-center gap-1.5">
+                    <AlertTriangle size={13} /> ATENÇÃO — Operação irreversível
                   </p>
-                  <ul className="text-xs text-red-300/90 space-y-1 list-disc list-inside">
-                    <li>Todas as tabelas serão <strong>apagadas</strong> (DROP TABLE)</li>
-                    <li>Todos os dados de usuários, projetos e atividades serão <strong>perdidos permanentemente</strong></li>
-                    <li>Não existe backup automático — certifique-se de ter exportado os dados antes</li>
-                    <li>Não há como desfazer esta operação</li>
+                  <ul className="text-[11px] text-red-300/80 space-y-1 list-disc list-inside">
+                    <li>Todas as tabelas serão <strong>apagadas</strong></li>
+                    <li>Todos os dados serão <strong>perdidos permanentemente</strong></li>
+                    <li>Não há backup automático nem como desfazer</li>
                   </ul>
                 </div>
               )}
 
-              {/* Confirmation input for RECRIAR */}
+              {/* Campo de confirmação */}
               {modal.acao === "RECRIAR" && (
-                <div className="space-y-2">
-                  <label className="text-xs text-[var(--text-secondary)]">
-                    Para confirmar, digite <strong className="text-red-400">CONFIRMAR</strong> abaixo:
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-[var(--text-secondary)] tracking-widest uppercase">
+                    Digite <strong className="text-red-400">CONFIRMAR</strong> para prosseguir
                   </label>
                   <input
                     type="text"
+                    autoFocus
                     value={modal.confirmText}
                     onChange={(e) => setModal((m) => m ? { ...m, confirmText: e.target.value } : null)}
                     placeholder="CONFIRMAR"
-                    className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] font-mono focus:outline-none focus:border-red-500 transition-colors"
-                    autoFocus
+                    className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-[10px] px-3 py-2.5 text-sm text-[var(--text-primary)] font-mono focus:outline-none focus:border-red-500 focus:ring-[3px] focus:ring-red-500/15 transition-all"
                   />
                 </div>
               )}
 
-              {/* Schema log during execution */}
+              {/* Log de execução */}
               {schemaLog.length > 0 && (
-                <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-3 max-h-40 overflow-y-auto">
+                <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-[10px] p-3 max-h-44 overflow-y-auto">
                   {schemaLog.map((line, i) => (
-                    <p key={i} className={`text-xs font-mono leading-5 ${line.startsWith("OK") ? "text-emerald-400" : line.startsWith("DROP") ? "text-amber-400" : line.startsWith("SKIP") ? "text-[var(--text-secondary)]" : "text-[var(--text-primary)]"}`}>
+                    <p key={i} className={`text-[11px] font-mono leading-5 ${
+                      line.startsWith("OK")   ? "text-emerald-400" :
+                      line.startsWith("DROP") ? "text-amber-400"   :
+                      line.startsWith("SKIP") ? "text-[var(--text-muted)]" :
+                      "text-[var(--text-secondary)]"
+                    }`}>
                       {line}
                     </p>
                   ))}
                 </div>
               )}
 
-              {/* Actions */}
+              {/* Botões */}
               <div className="flex gap-3 pt-1">
-                <Button
-                  variant="ghost"
-                  className="flex-1"
-                  onClick={() => setModal(null)}
-                  disabled={executandoSchema}
-                >
+                <Button variant="ghost" className="flex-1" onClick={() => setModal(null)} disabled={executandoSchema}>
                   Cancelar
                 </Button>
-                <Button
-                  className={`flex-1 ${modal.acao === "RECRIAR" ? "!bg-red-600 hover:!bg-red-700 !text-white !border-red-600" : ""}`}
+                <button
                   onClick={executarSchema}
-                  loading={executandoSchema}
-                  disabled={modal.acao === "RECRIAR" && modal.confirmText !== "CONFIRMAR"}
+                  disabled={executandoSchema || (modal.acao === "RECRIAR" && modal.confirmText !== "CONFIRMAR")}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-[10px] text-sm font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
+                    modal.acao === "RECRIAR"
+                      ? "bg-red-600 hover:bg-red-700 text-white border border-red-600"
+                      : "bg-gradient-to-b from-[#5B9BFF] to-[#2563EB] text-white shadow-[0_2px_12px_rgba(79,142,247,0.35)]"
+                  }`}
                 >
+                  {executandoSchema && <Loader2 size={13} className="animate-spin" />}
                   {modal.acao === "RECRIAR" ? "Recriar Tabelas" : "Criar Tabelas"}
-                </Button>
+                </button>
               </div>
             </motion.div>
           </motion.div>

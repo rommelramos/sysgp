@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { parseConnectionUrl } from "@/lib/db-url";
 import * as mariadb from "mariadb";
 
 const DROP_STATEMENTS = [
@@ -139,7 +140,6 @@ const CREATE_STATEMENTS = [
     PRIMARY KEY (id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  // Foreign keys — ignore if already exist (ALTER TABLE is idempotent with IF NOT EXISTS via IGNORE)
   `ALTER TABLE usuarios ADD CONSTRAINT fk_usuarios_supervisor
     FOREIGN KEY (supervisor_id) REFERENCES usuarios(id)`,
   `ALTER TABLE projetos ADD CONSTRAINT fk_projetos_coordenador
@@ -168,33 +168,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
 
-  let body: {
-    acao: "CRIAR" | "RECRIAR";
-    host: string;
-    porta: string;
-    nome: string;
-    usuario: string;
-    senha: string;
-    confirmacao?: string;
-  };
+  let body: { acao: "CRIAR" | "RECRIAR"; url: string; senha: string; confirmacao?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Requisição inválida" }, { status: 400 });
   }
 
-  const { acao, host, porta, nome, usuario, senha, confirmacao } = body;
+  const { acao, url, senha, confirmacao } = body;
 
   if (!["CRIAR", "RECRIAR"].includes(acao)) {
     return NextResponse.json({ error: "Ação inválida" }, { status: 422 });
   }
-
   if (acao === "RECRIAR" && confirmacao !== "CONFIRMAR") {
     return NextResponse.json({ error: "Confirmação inválida" }, { status: 422 });
   }
+  if (!url) {
+    return NextResponse.json({ error: "String de conexão obrigatória" }, { status: 422 });
+  }
 
-  if (!host || !nome || !usuario) {
-    return NextResponse.json({ error: "Credenciais incompletas" }, { status: 422 });
+  let parts: ReturnType<typeof parseConnectionUrl>;
+  try {
+    parts = parseConnectionUrl(url);
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 422 });
   }
 
   let conn: mariadb.Connection | undefined;
@@ -203,10 +200,10 @@ export async function POST(req: NextRequest) {
 
   try {
     conn = await mariadb.createConnection({
-      host,
-      port: Number(porta) || 3306,
-      database: nome,
-      user: usuario,
+      host:     parts.host,
+      port:     parts.port,
+      database: parts.database,
+      user:     parts.user,
       password: senha,
       connectTimeout: 8000,
     });
@@ -221,13 +218,15 @@ export async function POST(req: NextRequest) {
     for (const stmt of CREATE_STATEMENTS) {
       try {
         await conn.query(stmt);
-        const label = stmt.trim().split("\n")[0].slice(0, 70);
-        executados.push(`OK: ${label}`);
+        executados.push(`OK: ${stmt.trim().split("\n")[0].slice(0, 70)}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        // Duplicate FK constraint errors are expected on re-run of CREATE (not recreate)
-        if (msg.includes("Duplicate key name") || msg.includes("errno: 121") || msg.includes("ER_DUP_KEY")) {
-          executados.push(`SKIP (já existe): ${stmt.trim().split("\n")[0].slice(0, 60)}`);
+        if (
+          msg.includes("Duplicate key name") ||
+          msg.includes("errno: 121") ||
+          msg.includes("ER_DUP_KEY")
+        ) {
+          executados.push(`SKIP (já existe): ${stmt.trim().split("\n")[0].slice(0, 55)}`);
         } else {
           erros.push(msg);
         }

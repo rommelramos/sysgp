@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { buildConnectionUrl, parseConnectionUrl } from "@/lib/db-url";
 import * as mariadb from "mariadb";
 
 export async function POST(req: NextRequest) {
@@ -8,33 +9,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
 
-  let body: { host: string; porta: string; nome: string; usuario: string; senha: string };
+  let body: { url: string; senha: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Requisição inválida" }, { status: 400 });
   }
 
-  const { host, porta, nome, usuario, senha } = body;
-  if (!host || !nome || !usuario) {
-    return NextResponse.json({ error: "Preencha host, nome do banco e usuário" }, { status: 422 });
+  const { url, senha } = body;
+  if (!url) {
+    return NextResponse.json({ error: "Informe a string de conexão" }, { status: 422 });
   }
 
+  let parts: ReturnType<typeof parseConnectionUrl>;
+  try {
+    parts = parseConnectionUrl(url);
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 422 });
+  }
+
+  void buildConnectionUrl; // used via parts below
   let conn: mariadb.Connection | undefined;
   try {
     conn = await mariadb.createConnection({
-      host,
-      port: Number(porta) || 3306,
-      database: nome,
-      user: usuario,
+      host:     parts.host,
+      port:     parts.port,
+      database: parts.database,
+      user:     parts.user,
       password: senha,
-      connectTimeout: 5000,
+      connectTimeout: 6000,
     });
     await conn.query("SELECT 1");
     return NextResponse.json({ ok: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
-    return NextResponse.json({ ok: false, error: msg }, { status: 200 });
+    return NextResponse.json({ ok: false, error: msg });
   } finally {
     if (conn) await conn.end().catch(() => {});
   }
