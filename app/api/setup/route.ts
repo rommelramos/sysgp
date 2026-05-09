@@ -11,7 +11,18 @@ export async function GET() {
     return NextResponse.json({ configured: count > 0, dbUrl });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro ao acessar banco";
-    return NextResponse.json({ configured: false, dbUrl, error: msg });
+    // Tabela não existe = banco acessível mas esquema ainda não criado → not configured
+    const tablesMissing =
+      msg.includes("does not exist") ||
+      msg.includes("doesn't exist") ||
+      msg.includes("Table") ||
+      msg.includes("ECONNREFUSED");
+    return NextResponse.json({
+      configured: false,
+      dbUrl,
+      // Só expõe o erro se não for simplesmente "tabela não existe"
+      ...(tablesMissing ? {} : { error: msg }),
+    });
   }
 }
 
@@ -27,6 +38,14 @@ export async function POST(req: NextRequest) {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro ao acessar banco";
+    const tablesMissing =
+      msg.includes("does not exist") || msg.includes("doesn't exist") || msg.includes("Table");
+    if (tablesMissing) {
+      return NextResponse.json(
+        { error: "As tabelas do banco ainda não foram criadas. Execute 'Criar Tabelas' antes de continuar." },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ error: `Banco inacessível: ${msg}` }, { status: 500 });
   }
 

@@ -7,6 +7,7 @@ import {
   Database, KeyRound, Link2, CheckCircle, AlertTriangle,
   Loader2, User, Mail, Lock, CreditCard, Eye, EyeOff,
   ArrowRight, ArrowLeft, Sparkles, ShieldCheck, Info,
+  TableProperties, ChevronDown, ChevronUp,
 } from "lucide-react";
 
 /* ── tipos ─────────────────────────────────────────────────────────── */
@@ -78,6 +79,13 @@ export default function SetupPage() {
   const [testeOk, setTesteOk]   = useState<boolean | null>(null);
   const [testeMsg, setTesteMsg] = useState("");
 
+  /* Schema */
+  const [criandoTabelas, setCriandoTabelas] = useState(false);
+  const [tabelasOk, setTabelasOk]           = useState<boolean | null>(null);
+  const [tabelasLog, setTabelasLog]         = useState<string[]>([]);
+  const [tabelasErros, setTabelasErros]     = useState<string[]>([]);
+  const [showLog, setShowLog]               = useState(false);
+
   /* Usuário */
   const [form, setForm] = useState({
     nomeCompleto: "", cpf: "", email: "", senha: "", confirmar: "",
@@ -107,6 +115,11 @@ export default function SetupPage() {
     setTestando(true);
     setTesteOk(null);
     setTesteMsg("");
+    // reset schema state on new test
+    setTabelasOk(null);
+    setTabelasLog([]);
+    setTabelasErros([]);
+    setShowLog(false);
     try {
       const res = await fetch("/api/setup/testar", {
         method: "POST",
@@ -121,6 +134,32 @@ export default function SetupPage() {
       setTesteMsg("Erro ao comunicar com o servidor");
     } finally {
       setTestando(false);
+    }
+  }
+
+  /* ── Criar tabelas ───────────────────────────────────────────── */
+  async function criarTabelas() {
+    setCriandoTabelas(true);
+    setTabelasOk(null);
+    setTabelasLog([]);
+    setTabelasErros([]);
+    setShowLog(false);
+    try {
+      const res = await fetch("/api/setup/schema", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: dbUrl, senha: dbPass }),
+      });
+      const data = await res.json();
+      setTabelasOk(data.ok === true);
+      setTabelasLog(data.executados ?? []);
+      setTabelasErros(data.erros ?? []);
+      if (data.erros?.length > 0) setShowLog(true);
+    } catch {
+      setTabelasOk(false);
+      setTabelasErros(["Erro ao comunicar com o servidor"]);
+    } finally {
+      setCriandoTabelas(false);
     }
   }
 
@@ -180,7 +219,7 @@ export default function SetupPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
         className="relative z-10 w-full"
-        style={{ maxWidth: 440 }}
+        style={{ maxWidth: 460 }}
       >
         {/* Card */}
         <div
@@ -295,7 +334,7 @@ export default function SetupPage() {
                     <input
                       type="text"
                       value={dbUrl}
-                      onChange={(e) => { setDbUrl(e.target.value); setTesteOk(null); setTesteMsg(""); }}
+                      onChange={(e) => { setDbUrl(e.target.value); setTesteOk(null); setTesteMsg(""); setTabelasOk(null); }}
                       placeholder="mysql://usuario@host:3306/sysgp"
                       spellCheck={false}
                       className={inputCls + " font-mono text-[13px]"}
@@ -314,13 +353,13 @@ export default function SetupPage() {
                     <input
                       type={showPass ? "text" : "password"}
                       value={dbPass}
-                      onChange={(e) => { setDbPass(e.target.value); setTesteOk(null); setTesteMsg(""); }}
+                      onChange={(e) => { setDbPass(e.target.value); setTesteOk(null); setTesteMsg(""); setTabelasOk(null); }}
                       placeholder="Senha do banco de dados"
                       className={inputCls + " pr-11"}
                     />
                   </Field>
 
-                  {/* Botão testar + status */}
+                  {/* ── Sub-etapa 1: Testar conexão ── */}
                   <div className="space-y-2">
                     <button type="button" onClick={testarConexao} disabled={testando || !dbUrl}
                       className="w-full py-2.5 rounded-[10px] text-[13px] font-semibold border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all">
@@ -345,10 +384,99 @@ export default function SetupPage() {
                     </AnimatePresence>
                   </div>
 
-                  {/* Próximo passo */}
+                  {/* ── Sub-etapa 2: Criar tabelas (aparece após conexão OK) ── */}
+                  <AnimatePresence>
+                    {testeOk === true && (
+                      <motion.div
+                        key="schema-section"
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="space-y-2"
+                      >
+                        {/* Divider com label */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-px bg-[var(--border)]" />
+                          <span className="text-[10px] font-semibold text-[var(--text-muted)] tracking-widest uppercase px-1">
+                            Estrutura do banco
+                          </span>
+                          <div className="flex-1 h-px bg-[var(--border)]" />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={criarTabelas}
+                          disabled={criandoTabelas || tabelasOk === true}
+                          className="w-full py-2.5 rounded-[10px] text-[13px] font-semibold border transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed"
+                          style={
+                            tabelasOk === true
+                              ? { borderColor: "rgba(52,211,153,0.25)", background: "rgba(52,211,153,0.06)", color: "rgb(52,211,153)", opacity: 1 }
+                              : { borderColor: "var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)" }
+                          }
+                        >
+                          {criandoTabelas ? (
+                            <><Loader2 size={14} className="animate-spin" /> Criando tabelas…</>
+                          ) : tabelasOk === true ? (
+                            <><CheckCircle size={14} /> Tabelas criadas com sucesso</>
+                          ) : (
+                            <><TableProperties size={14} /> Criar Tabelas do Sistema</>
+                          )}
+                        </button>
+
+                        {/* Resultado / erros */}
+                        <AnimatePresence>
+                          {tabelasOk === false && tabelasErros.length > 0 && (
+                            <motion.div key="tab-err" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                              className="text-[12px] text-red-400 bg-red-400/8 border border-red-400/20 rounded-[8px] px-3 py-2.5 space-y-1">
+                              <p className="font-semibold flex items-center gap-1.5"><AlertTriangle size={12} /> Erros ao criar tabelas:</p>
+                              {tabelasErros.map((e, i) => (
+                                <p key={i} className="font-mono break-all opacity-80">{e}</p>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {/* Log expansível */}
+                        {tabelasLog.length > 0 && (
+                          <div className="rounded-[8px] border border-[var(--border)] overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setShowLog(s => !s)}
+                              className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-all"
+                            >
+                              <span>Log de execução ({tabelasLog.length} operações)</span>
+                              {showLog ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                            </button>
+                            <AnimatePresence>
+                              {showLog && (
+                                <motion.div
+                                  key="log"
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="px-3 pb-2.5 max-h-36 overflow-y-auto space-y-0.5"
+                                    style={{ borderTop: "1px solid var(--border)" }}>
+                                    {tabelasLog.map((line, i) => (
+                                      <p key={i} className="text-[10px] font-mono text-[var(--text-muted)] leading-relaxed">{line}</p>
+                                    ))}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* ── Próximo passo (só habilita com tabelas criadas) ── */}
                   <button
                     type="button"
-                    disabled={!testeOk}
+                    disabled={!tabelasOk}
                     onClick={() => setPhase("user")}
                     className="w-full py-3 rounded-[10px] text-[14px] font-semibold text-white font-[family-name:var(--font-display)] flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-35 disabled:cursor-not-allowed"
                     style={{ background: "linear-gradient(160deg, #5B9BFF 0%, #2563EB 100%)", boxShadow: "0 2px 16px rgba(79,142,247,0.35)" }}

@@ -9,6 +9,7 @@ const apiPublicRoutes = [
   "/api/auth/refresh",
   "/api/setup",
   "/api/setup/testar",
+  "/api/setup/schema",
 ];
 
 const adminOnlyRoutes = ["/usuarios", "/admin"];
