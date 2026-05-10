@@ -199,7 +199,7 @@ export default function DashboardPage() {
               {/* Dot */}
               <div className="w-2 h-2 rounded-full bg-[var(--accent-primary)]/40 group-hover:bg-[var(--accent-primary)] transition-colors shrink-0" />
 
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0" style={{ marginLeft: '5px' }}>
                 <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
                   {a.titulo}
                 </p>

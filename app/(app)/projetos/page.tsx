@@ -165,7 +165,7 @@ function ProjectListRow({ projeto, index }: { projeto: Projeto; index: number })
           <p className="text-xs text-[var(--text-muted)] truncate">{projeto.coordenador.nomeCompleto}</p>
         </div>
         <div className="hidden sm:flex items-center gap-6 shrink-0">
-          <div className="text-right">
+          <div className="text-right" style={{ marginLeft: '5px' }}>
             <p className="text-xs text-[var(--text-muted)]">Membros</p>
             <p className="text-sm font-semibold text-[var(--text-primary)]">{projeto._count.membros}</p>
           </div>
@@ -173,7 +173,7 @@ function ProjectListRow({ projeto, index }: { projeto: Projeto; index: number })
             <p className="text-xs text-[var(--text-muted)]">Prazo</p>
             <p className="text-sm font-semibold text-[var(--text-primary)] font-mono">{formatarData(projeto.dataFimPrevista)}</p>
           </div>
-          <div className="text-right min-w-[48px]">
+          <div className="text-right min-w-[48px]" style={{ marginLeft: '5px' }}>
             <p className="text-xs text-[var(--text-muted)]">Progresso</p>
             <p className="text-sm font-bold text-[var(--text-primary)]">{progress}%</p>
           </div>

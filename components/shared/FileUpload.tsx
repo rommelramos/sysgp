@@ -147,7 +147,7 @@ export function FileUpload({ onUpload, maxFiles = 10, accept, className }: FileU
         >
           <Upload size={20} />
         </div>
-        <div className="text-center">
+        <div className="text-center" style={{ marginLeft: '5px' }}>
           <p className="text-sm font-medium text-[var(--text-primary)]">
             {dragging ? "Solte os arquivos aqui" : "Arraste arquivos ou clique para selecionar"}
           </p>
@@ -186,7 +186,7 @@ export function FileUpload({ onUpload, maxFiles = 10, accept, className }: FileU
             ) : (
               <FileIcon mimeType={p.type} />
             )}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0" style={{ marginLeft: '5px' }}>
               <p className="text-xs font-medium text-[var(--text-primary)] truncate">{p.name}</p>
               <p className="text-xs text-[var(--text-secondary)]">{formatBytes(p.size)}</p>
             </div>

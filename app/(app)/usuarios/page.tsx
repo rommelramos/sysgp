@@ -167,7 +167,7 @@ export default function UsuariosPage() {
         </div>
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-4 border-t border-[var(--border)]">
+          <div className="flex items-center justify-between px-5 py-4 border-t border-[var(--border)]" style={{ marginLeft: '5px' }}>
             <p className="text-xs text-[var(--text-secondary)]">Página {page} de {totalPages}</p>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Anterior</Button>

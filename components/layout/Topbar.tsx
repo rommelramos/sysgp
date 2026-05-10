@@ -81,7 +81,7 @@ export function Topbar({ onMobileMenuToggle }: TopbarProps) {
           >
             {user?.nome?.charAt(0).toUpperCase()}
           </div>
-          <div className="hidden sm:block">
+          <div className="hidden sm:block" style={{ marginLeft: '5px' }}>
             <p className="text-[13px] font-semibold text-[var(--text-primary)] leading-none">
               {user?.nome?.split(" ")[0]}
             </p>

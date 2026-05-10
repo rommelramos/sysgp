@@ -83,7 +83,7 @@ export function StatCard({ title, value, icon, color = "blue", subtitle, trend }
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0 space-y-1.5">
+        <div className="flex-1 min-w-0 space-y-1.5" style={{ marginLeft: '5px' }}>
           <p className="text-[11px] font-semibold text-[var(--text-muted)] tracking-[0.07em] uppercase">
             {title}
           </p>

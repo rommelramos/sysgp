@@ -403,7 +403,7 @@ export default function ConfiguracoesPage() {
 
               {/* Alerta destrutivo */}
               {modal.acao === "RECRIAR" && (
-                <div className="bg-red-500/8 border border-red-500/20 rounded-[12px] p-4 space-y-2">
+                <div className="bg-red-500/8 border border-red-500/20 rounded-[12px] p-4 space-y-2" style={{ marginLeft: '5px' }}>
                   <p className="text-[12px] font-bold text-red-400 flex items-center gap-1.5">
                     <AlertTriangle size={13} /> ATENÇÃO — Operação irreversível
                   </p>
