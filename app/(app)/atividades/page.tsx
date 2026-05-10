@@ -159,7 +159,7 @@ export default function AtividadesPage() {
       )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nova Atividade" size="lg">
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4" style={{ marginLeft: '5px', marginRight: '5px' }}>
           <Select
             label="Projeto"
             value={form.projetoId}

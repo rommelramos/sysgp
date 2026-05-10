@@ -113,7 +113,7 @@ export default function UsuariosPage() {
             value={busca}
             onChange={(e) => { setBusca(e.target.value); setPage(1); }}
             placeholder="Buscar por nome, e-mail ou CPF..."
-            className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.25)] transition-all"
+            className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.25)] transition-all"
           />
         </div>
         <Button variant="ghost" icon={<RefreshCw size={14} />} onClick={carregar}>
@@ -178,7 +178,7 @@ export default function UsuariosPage() {
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Usuário" size="lg">
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4" style={{ marginLeft: '5px', marginRight: '5px' }}>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <Input label="Nome Completo" value={form.nomeCompleto} onChange={(e) => setForm(f => ({ ...f, nomeCompleto: e.target.value }))} required />

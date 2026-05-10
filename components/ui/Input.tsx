@@ -41,7 +41,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               "transition-all duration-150",
               "focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.12)]",
               "disabled:opacity-40 disabled:cursor-not-allowed",
-              icon && "pl-9",
+              icon && "pl-10",
               rightIcon && "pr-9",
               error && "border-red-400/50 focus:border-red-400 focus:ring-red-400/15",
               className

@@ -308,7 +308,7 @@ export default function ProjetosPage() {
               value={busca}
               onChange={(e) => { setBusca(e.target.value); setPage(1); }}
               placeholder="Buscar projetos..."
-              className="bg-white border border-[var(--border)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-lg pl-8 pr-4 py-1.5 text-sm focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.12)] transition-all w-48"
+              className="bg-white border border-[var(--border)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-lg pl-10 pr-4 py-1.5 text-sm focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.12)] transition-all w-48"
             />
           </div>
           <div className="flex items-center bg-white border border-[var(--border)] rounded-lg p-1 gap-0.5 shadow-[var(--shadow-sm)]">
@@ -384,7 +384,7 @@ export default function ProjetosPage() {
 
       {/* New project modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Projeto" size="lg">
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4" style={{ marginLeft: '5px', marginRight: '5px' }}>
           <Input label="Título" value={form.titulo} onChange={(e) => setForm(f => ({ ...f, titulo: e.target.value }))} required />
           <Textarea label="Descrição / Objetivo" value={form.descricao} onChange={(e) => setForm(f => ({ ...f, descricao: e.target.value }))} rows={3} />
           <Input label="Área Temática" value={form.areaTematica} onChange={(e) => setForm(f => ({ ...f, areaTematica: e.target.value }))} />
