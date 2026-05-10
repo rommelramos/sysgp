@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, Users, BookOpen, CalendarRange } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, BookOpen, CalendarRange, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -68,7 +68,7 @@ function parseCronograma(raw: string | null): CronogramaItem[] {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) return parsed as CronogramaItem[];
-  } catch { /* not JSON, ignore */ }
+  } catch { /* not JSON */ }
   return [];
 }
 
@@ -84,10 +84,13 @@ export default function VinculosPage() {
   const [metas, setMetas] = useState<{ descricao: string }[]>([]);
   const [cronogramaItems, setCronogramaItems] = useState<CronogramaItem[]>([]);
   const [projetos, setProjetos] = useState<Array<{ id: string; titulo: string }>>([]);
+  const [projetosIds, setProjetosIds] = useState<Set<string>>(new Set());
   const [usuarios, setUsuarios] = useState<Array<{ id: string; nomeCompleto: string; email: string }>>([]);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [extraindo, setExtraindo] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const { user } = useAuth();
 
@@ -110,15 +113,28 @@ export default function VinculosPage() {
   useEffect(() => { carregar(); }, [carregar]);
 
   useEffect(() => {
-    fetch("/api/projetos?pageSize=100")
+    if (!user) return;
+    // Admins see all projects; others see only projects they coordinate
+    const url = isAdmin
+      ? "/api/projetos?pageSize=100"
+      : "/api/projetos?somenteMinhasCoord=1&pageSize=100";
+
+    fetch(url)
       .then((r) => r.json())
-      .then((d) => setProjetos(d.data || []))
+      .then((d) => {
+        const lista = d.data || [];
+        setProjetos(lista);
+        setProjetosIds(new Set(lista.map((p: { id: string }) => p.id)));
+      })
       .catch(() => {});
+
     fetch("/api/usuarios?pageSize=200")
       .then((r) => r.json())
       .then((d) => setUsuarios(d.data || []))
       .catch(() => {});
-  }, []);
+  }, [user, isAdmin]);
+
+  const canManage = isAdmin || projetos.length > 0;
 
   function openCreate() {
     setEditTarget(null);
@@ -149,6 +165,48 @@ export default function VinculosPage() {
     setModalOpen(true);
   }
 
+  async function handleExtrair(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setExtraindo(true);
+    try {
+      const fd = new FormData();
+      fd.append("arquivo", file);
+      const res = await fetch("/api/vinculos/extrair", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.ok) { toast("error", data.error || "Erro ao extrair dados"); return; }
+
+      const d = data.dados as {
+        funcao?: string; cargaHoraria?: number; valorBolsa?: number;
+        duracaoMeses?: number; dataInicioBolsa?: string; dataFimBolsa?: string;
+        resultadosEsperados?: string; cronograma?: CronogramaItem[];
+        metas?: { descricao: string }[];
+      };
+
+      setForm(f => ({
+        ...f,
+        ...(d.funcao              ? { funcao: d.funcao }                                       : {}),
+        ...(d.cargaHoraria        ? { cargaHoraria: String(Math.round(d.cargaHoraria)) }       : {}),
+        ...(d.valorBolsa          ? { valorBolsa: String(d.valorBolsa) }                       : {}),
+        ...(d.duracaoMeses        ? { duracaoMeses: String(Math.round(d.duracaoMeses)) }       : {}),
+        ...(d.dataInicioBolsa     ? { dataInicioBolsa: d.dataInicioBolsa }                     : {}),
+        ...(d.dataFimBolsa        ? { dataFimBolsa: d.dataFimBolsa }                           : {}),
+        ...(d.resultadosEsperados ? { resultadosEsperados: d.resultadosEsperados }             : {}),
+      }));
+
+      if (d.cronograma?.length) setCronogramaItems(d.cronograma);
+      if (d.metas?.length) setMetas(d.metas.map((m) => ({ descricao: m.descricao })));
+
+      const total = Object.keys(d).length;
+      toast("success", `${total} campo(s) preenchido(s) automaticamente`);
+    } catch {
+      toast("error", "Erro ao processar o arquivo");
+    } finally {
+      setExtraindo(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -166,20 +224,15 @@ export default function VinculosPage() {
         metas: metas.filter((m) => m.descricao.trim()),
       };
 
-      let res: Response;
-      if (editTarget) {
-        res = await fetch(`/api/vinculos/${editTarget.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      } else {
-        res = await fetch("/api/vinculos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      }
+      const res = editTarget
+        ? await fetch(`/api/vinculos/${editTarget.id}`, {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch("/api/vinculos", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
 
       const data = await res.json();
       if (!res.ok) { toast("error", data.error || "Erro ao salvar vínculo"); return; }
@@ -215,12 +268,8 @@ export default function VinculosPage() {
     setMetas((m) => m.map((meta, idx) => idx === i ? { ...meta, descricao: val } : meta));
   }
 
-  function addCronogramaItem() {
-    setCronogramaItems((c) => [...c, { nome: "", dataInicio: "", dataFim: "" }]);
-  }
-  function removeCronogramaItem(i: number) {
-    setCronogramaItems((c) => c.filter((_, idx) => idx !== i));
-  }
+  function addCronogramaItem() { setCronogramaItems((c) => [...c, { nome: "", dataInicio: "", dataFim: "" }]); }
+  function removeCronogramaItem(i: number) { setCronogramaItems((c) => c.filter((_, idx) => idx !== i)); }
   function updateCronogramaItem(i: number, field: keyof CronogramaItem, val: string) {
     setCronogramaItems((c) => c.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
   }
@@ -235,7 +284,7 @@ export default function VinculosPage() {
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Vínculos</h1>
           <p className="text-sm text-[var(--text-secondary)]">{total} vínculo(s) encontrado(s)</p>
         </div>
-        {!user || user.perfil === "MEMBRO" ? null : (
+        {canManage && (
           <Button icon={<Plus size={16} />} onClick={openCreate}>
             Novo Vínculo
           </Button>
@@ -258,6 +307,7 @@ export default function VinculosPage() {
         <div className="space-y-3">
           {vinculos.map((v, i) => {
             const cronItems = parseCronograma(v.cronograma);
+            const canEdit = isAdmin || projetosIds.has(v.projeto.id);
             return (
               <motion.div
                 key={v.id}
@@ -291,12 +341,11 @@ export default function VinculosPage() {
                     <button
                       onClick={() => setExpandedId(expandedId === v.id ? null : v.id)}
                       className="flex items-center gap-1 px-2 py-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-lg hover:bg-[var(--bg-elevated)] transition-colors"
-                      aria-label={expandedId === v.id ? "Recolher detalhes" : "Ver detalhes"}
                     >
                       <BookOpen size={13} />
                       {v.metas.length > 0 && <span>{v.metas.length} metas</span>}
                     </button>
-                    {!user || user.perfil === "MEMBRO" ? null : (
+                    {canEdit && (
                       <Button variant="ghost" size="sm" icon={<Pencil size={13} />} onClick={() => openEdit(v)}>
                         Editar
                       </Button>
@@ -417,6 +466,31 @@ export default function VinculosPage() {
         size="xl"
       >
         <form onSubmit={handleSubmit} className="p-6 space-y-5" style={{ marginLeft: '5px', marginRight: '5px' }}>
+
+          {/* LLM import banner */}
+          <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+            <FileText size={16} className="text-blue-500 shrink-0" />
+            <p className="text-[12px] text-blue-700 flex-1">
+              Importe o plano de trabalho (.txt, .md) para preencher os campos automaticamente com IA.
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.md,.doc,.docx"
+              className="hidden"
+              onChange={handleExtrair}
+            />
+            <button
+              type="button"
+              disabled={extraindo}
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-blue-700 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            >
+              {extraindo ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+              {extraindo ? "Extraindo..." : "Selecionar arquivo"}
+            </button>
+          </div>
+
           {/* Projeto + Usuário */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
@@ -480,63 +554,30 @@ export default function VinculosPage() {
           {/* Bolsa fields */}
           {form.isBolsista && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-green-50 rounded-xl border border-green-100">
-              <Input
-                label="Valor da Bolsa (R$)"
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.valorBolsa}
-                onChange={(e) => setForm(f => ({ ...f, valorBolsa: e.target.value }))}
-                placeholder="0,00"
-              />
-              <Input
-                label="Duração (meses)"
-                type="number"
-                min="1"
-                value={form.duracaoMeses}
-                onChange={(e) => setForm(f => ({ ...f, duracaoMeses: e.target.value }))}
-              />
-              <Input
-                label="Início da Bolsa"
-                type="date"
-                value={form.dataInicioBolsa}
-                onChange={(e) => setForm(f => ({ ...f, dataInicioBolsa: e.target.value }))}
-              />
-              <Input
-                label="Fim da Bolsa"
-                type="date"
-                value={form.dataFimBolsa}
-                onChange={(e) => setForm(f => ({ ...f, dataFimBolsa: e.target.value }))}
-              />
+              <Input label="Valor da Bolsa (R$)" type="number" step="0.01" min="0"
+                value={form.valorBolsa} onChange={(e) => setForm(f => ({ ...f, valorBolsa: e.target.value }))} placeholder="0,00" />
+              <Input label="Duração (meses)" type="number" min="1"
+                value={form.duracaoMeses} onChange={(e) => setForm(f => ({ ...f, duracaoMeses: e.target.value }))} />
+              <Input label="Início da Bolsa" type="date"
+                value={form.dataInicioBolsa} onChange={(e) => setForm(f => ({ ...f, dataInicioBolsa: e.target.value }))} />
+              <Input label="Fim da Bolsa" type="date"
+                value={form.dataFimBolsa} onChange={(e) => setForm(f => ({ ...f, dataFimBolsa: e.target.value }))} />
             </div>
           )}
 
           {/* Carga Horária */}
-          <Input
-            label="Carga Horária (horas/semana)"
-            type="number"
-            min="1"
-            max="40"
-            value={form.cargaHoraria}
-            onChange={(e) => setForm(f => ({ ...f, cargaHoraria: e.target.value }))}
-            placeholder="Ex: 20"
-          />
+          <Input label="Carga Horária (horas/semana)" type="number" min="1" max="40"
+            value={form.cargaHoraria} onChange={(e) => setForm(f => ({ ...f, cargaHoraria: e.target.value }))} placeholder="Ex: 20" />
 
           {/* Resultados Esperados */}
-          <Textarea
-            label="Resultados Esperados"
-            value={form.resultadosEsperados}
-            onChange={(e) => setForm(f => ({ ...f, resultadosEsperados: e.target.value }))}
-            rows={3}
-            placeholder="Descreva os resultados esperados com este membro no projeto..."
-          />
+          <Textarea label="Resultados Esperados" value={form.resultadosEsperados}
+            onChange={(e) => setForm(f => ({ ...f, resultadosEsperados: e.target.value }))} rows={3}
+            placeholder="Descreva os resultados esperados com este membro no projeto..." />
 
           {/* Cronograma de Atividades — structured list */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium text-[var(--text-secondary)]">
-                Cronograma de Atividades
-              </label>
+              <label className="text-sm font-medium text-[var(--text-secondary)]">Cronograma de Atividades</label>
               <Button type="button" variant="ghost" size="sm" icon={<Plus size={13} />} onClick={addCronogramaItem}>
                 Adicionar Atividade
               </Button>
@@ -560,26 +601,16 @@ export default function VinculosPage() {
                     />
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className="text-xs text-[var(--text-muted)] font-medium">De</span>
-                      <input
-                        type="date"
-                        value={item.dataInicio}
+                      <input type="date" value={item.dataInicio}
                         onChange={(e) => updateCronogramaItem(i, "dataInicio", e.target.value)}
-                        className="bg-white border border-[var(--border)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.15)] transition-all"
-                      />
+                        className="bg-white border border-[var(--border)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.15)] transition-all" />
                       <span className="text-xs text-[var(--text-muted)] font-medium">até</span>
-                      <input
-                        type="date"
-                        value={item.dataFim}
+                      <input type="date" value={item.dataFim}
                         onChange={(e) => updateCronogramaItem(i, "dataFim", e.target.value)}
-                        className="bg-white border border-[var(--border)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.15)] transition-all"
-                      />
+                        className="bg-white border border-[var(--border)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.15)] transition-all" />
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeCronogramaItem(i)}
-                      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 transition-colors"
-                      aria-label={`Remover atividade ${i + 1}`}
-                    >
+                    <button type="button" onClick={() => removeCronogramaItem(i)}
+                      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 transition-colors">
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -591,9 +622,7 @@ export default function VinculosPage() {
           {/* Metas */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium text-[var(--text-secondary)]">
-                Metas do Plano de Trabalho
-              </label>
+              <label className="text-sm font-medium text-[var(--text-secondary)]">Metas do Plano de Trabalho</label>
               <Button type="button" variant="ghost" size="sm" icon={<Plus size={13} />} onClick={addMeta}>
                 Adicionar Meta
               </Button>
@@ -609,18 +638,11 @@ export default function VinculosPage() {
                     <span className="shrink-0 w-6 h-6 rounded-full bg-[var(--accent-primary)] text-white text-[10px] font-bold flex items-center justify-center">
                       {i + 1}
                     </span>
-                    <input
-                      value={m.descricao}
-                      onChange={(e) => updateMeta(i, e.target.value)}
+                    <input value={m.descricao} onChange={(e) => updateMeta(i, e.target.value)}
                       placeholder={`Meta ${i + 1}...`}
-                      className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.15)] transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeMeta(i)}
-                      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 transition-colors"
-                      aria-label={`Remover meta ${i + 1}`}
-                    >
+                      className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.15)] transition-all" />
+                    <button type="button" onClick={() => removeMeta(i)}
+                      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 transition-colors">
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -649,11 +671,8 @@ export default function VinculosPage() {
           </p>
           <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
-            <Button
-              onClick={handleDelete}
-              loading={deleting}
-              className="bg-red-600 hover:bg-red-700 text-white border-red-600"
-            >
+            <Button onClick={handleDelete} loading={deleting}
+              className="bg-red-600 hover:bg-red-700 text-white border-red-600">
               Excluir
             </Button>
           </div>

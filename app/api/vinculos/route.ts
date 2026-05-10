@@ -49,11 +49,22 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(bigintToString({ data: vinculos, total, page, pageSize }));
 }
 
+async function podeGerenciarVinculo(sessionId: string, projetoId: bigint): Promise<boolean> {
+  const projeto = await prisma.projeto.findUnique({
+    where: { id: projetoId },
+    select: { coordenadorId: true },
+  });
+  if (!projeto) return false;
+  if (projeto.coordenadorId === BigInt(sessionId)) return true;
+  const membroCoord = await prisma.projetoMembro.findFirst({
+    where: { projetoId, usuarioId: BigInt(sessionId), isCoordenador: true },
+  });
+  return !!membroCoord;
+}
+
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  if (!["ADMINISTRADOR", "SUPERVISOR"].includes(session.perfil))
-    return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
 
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Requisição inválida" }, { status: 400 }); }
@@ -61,11 +72,17 @@ export async function POST(req: NextRequest) {
   const bodyWithProject = body as { projetoId?: string } & Record<string, unknown>;
   if (!bodyWithProject.projetoId) return NextResponse.json({ error: "Projeto obrigatório" }, { status: 422 });
 
+  const projetoId = BigInt(bodyWithProject.projetoId);
+
+  if (session.perfil !== "ADMINISTRADOR") {
+    const pode = await podeGerenciarVinculo(session.id, projetoId);
+    if (!pode) return NextResponse.json({ error: "Apenas o administrador ou o coordenador do projeto pode registrar vínculos" }, { status: 403 });
+  }
+
   const parsed = membroProjetoSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 });
 
   const d = parsed.data;
-  const projetoId = BigInt(bodyWithProject.projetoId);
 
   if (d.isCoordenador) {
     await prisma.projetoMembro.updateMany({

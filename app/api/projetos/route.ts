@@ -14,10 +14,18 @@ export async function GET(req: NextRequest) {
   const pageSize = parseInt(searchParams.get("pageSize") || "25");
   const busca = searchParams.get("busca") || "";
   const status = searchParams.get("status") || undefined;
+  // When true: return only projects where the session user is the coordenador
+  const somenteMinhasCoord = searchParams.get("somenteMinhasCoord") === "1";
 
   const where: Record<string, unknown> = {};
 
-  if (session.perfil === "MEMBRO") {
+  if (somenteMinhasCoord) {
+    // Filter to projects the user coordinates (ignores role-based filter)
+    where.OR = [
+      { coordenadorId: BigInt(session.id) },
+      { membros: { some: { usuarioId: BigInt(session.id), isCoordenador: true } } },
+    ];
+  } else if (session.perfil === "MEMBRO") {
     where.membros = { some: { usuarioId: BigInt(session.id), statusVinculo: "ATIVO" } };
   } else if (session.perfil === "SUPERVISOR") {
     where.OR = [

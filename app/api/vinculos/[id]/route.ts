@@ -27,14 +27,35 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json(bigintToString(vinculo));
 }
 
+async function podeGerenciarVinculo(sessionId: string, projetoId: bigint): Promise<boolean> {
+  const projeto = await prisma.projeto.findUnique({
+    where: { id: projetoId },
+    select: { coordenadorId: true },
+  });
+  if (!projeto) return false;
+  if (projeto.coordenadorId === BigInt(sessionId)) return true;
+  const membroCoord = await prisma.projetoMembro.findFirst({
+    where: { projetoId, usuarioId: BigInt(sessionId), isCoordenador: true },
+  });
+  return !!membroCoord;
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  if (!["ADMINISTRADOR", "SUPERVISOR"].includes(session.perfil))
-    return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
 
   const { id } = await params;
   const vinculoId = BigInt(id);
+
+  if (session.perfil !== "ADMINISTRADOR") {
+    const vinculoExist = await prisma.projetoMembro.findUnique({
+      where: { id: vinculoId },
+      select: { projetoId: true },
+    });
+    if (!vinculoExist) return NextResponse.json({ error: "Vínculo não encontrado" }, { status: 404 });
+    const pode = await podeGerenciarVinculo(session.id, vinculoExist.projetoId);
+    if (!pode) return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+  }
 
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Requisição inválida" }, { status: 400 }); }
