@@ -145,7 +145,7 @@ export default function UsuariosPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: i * 0.02 }}
-                    className={`border-b border-[var(--border)] hover:bg-[var(--bg-elevated)] transition-colors ${i % 2 === 1 ? "bg-[rgba(26,34,53,0.3)]" : ""}`}
+                    className={`border-b border-[var(--border)] hover:bg-blue-50/50 transition-colors ${i % 2 === 1 ? "bg-[var(--bg-elevated)]" : ""}`}
                   >
                     <td className="px-4 py-3 text-sm font-medium text-[var(--text-primary)]">{u.nomeCompleto}</td>
                     <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{u.email}</td>

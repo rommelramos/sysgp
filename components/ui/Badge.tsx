@@ -1,18 +1,18 @@
 import { cn } from "@/lib/utils";
 
 const variants: Record<string, string> = {
-  ativo:        "bg-emerald-400/10 text-emerald-400 border-emerald-400/20",
-  encerrado:    "bg-slate-400/10   text-slate-400   border-slate-400/20",
-  suspenso:     "bg-amber-400/10   text-amber-400   border-amber-400/20",
-  em_andamento: "bg-blue-400/10    text-blue-400    border-blue-400/20",
-  concluido:    "bg-emerald-400/10 text-emerald-400 border-emerald-400/20",
-  membro:       "bg-slate-400/10   text-slate-400   border-slate-400/20",
-  supervisor:   "bg-teal-400/10    text-teal-400    border-teal-400/20",
-  administrador:"bg-violet-400/10  text-violet-400  border-violet-400/20",
-  bolsista:     "bg-emerald-400/10 text-emerald-400 border-emerald-400/20",
-  info:         "bg-blue-400/10    text-blue-400    border-blue-400/20",
-  warning:      "bg-amber-400/10   text-amber-400   border-amber-400/20",
-  danger:       "bg-red-400/10     text-red-400     border-red-400/20",
+  ativo:        "bg-emerald-50  text-emerald-700 border-emerald-200",
+  encerrado:    "bg-slate-100   text-slate-600   border-slate-200",
+  suspenso:     "bg-amber-50    text-amber-700   border-amber-200",
+  em_andamento: "bg-blue-50     text-blue-700    border-blue-200",
+  concluido:    "bg-emerald-50  text-emerald-700 border-emerald-200",
+  membro:       "bg-slate-100   text-slate-600   border-slate-200",
+  supervisor:   "bg-teal-50     text-teal-700    border-teal-200",
+  administrador:"bg-violet-50   text-violet-700  border-violet-200",
+  bolsista:     "bg-emerald-50  text-emerald-700 border-emerald-200",
+  info:         "bg-blue-50     text-blue-700    border-blue-200",
+  warning:      "bg-amber-50    text-amber-700   border-amber-200",
+  danger:       "bg-red-50      text-red-700     border-red-200",
 };
 
 const labels: Record<string, string> = {

@@ -10,7 +10,7 @@ export function Card({ children, className, ...props }: CardProps) {
       className={cn(
         "bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px]",
         "shadow-[var(--shadow-card)] transition-all duration-200",
-        "hover:shadow-[0_4px_24px_rgba(0,0,0,0.35)] hover:border-[var(--border-strong)]",
+        "hover:shadow-[0_4px_20px_rgba(37,99,235,0.08)] hover:border-[var(--border-strong)]",
         className
       )}
       {...props}
@@ -65,11 +65,11 @@ interface StatCardProps {
 }
 
 const colorMap = {
-  blue:   { bg: "bg-[#4F8EF7]/10", text: "text-[#4F8EF7]", border: "border-[#4F8EF7]/20", accent: "bg-[#4F8EF7]", hover: "hover:shadow-[0_0_28px_rgba(79,142,247,0.18)]" },
-  teal:   { bg: "bg-[#2DD4BF]/10", text: "text-[#2DD4BF]", border: "border-[#2DD4BF]/20", accent: "bg-[#2DD4BF]", hover: "hover:shadow-[0_0_28px_rgba(45,212,191,0.18)]" },
-  green:  { bg: "bg-[#34D399]/10", text: "text-[#34D399]", border: "border-[#34D399]/20", accent: "bg-[#34D399]", hover: "hover:shadow-[0_0_28px_rgba(52,211,153,0.18)]" },
-  amber:  { bg: "bg-[#FBBF24]/10", text: "text-[#FBBF24]", border: "border-[#FBBF24]/20", accent: "bg-[#FBBF24]", hover: "hover:shadow-[0_0_28px_rgba(251,191,36,0.18)]" },
-  purple: { bg: "bg-[#A78BFA]/10", text: "text-[#A78BFA]", border: "border-[#A78BFA]/20", accent: "bg-[#A78BFA]", hover: "hover:shadow-[0_0_28px_rgba(167,139,250,0.18)]" },
+  blue:   { bg: "bg-blue-50",    text: "text-blue-600",   border: "border-blue-100",   hover: "hover:shadow-[0_4px_20px_rgba(37,99,235,0.1)]" },
+  teal:   { bg: "bg-teal-50",    text: "text-teal-600",   border: "border-teal-100",   hover: "hover:shadow-[0_4px_20px_rgba(20,184,166,0.1)]" },
+  green:  { bg: "bg-emerald-50", text: "text-emerald-600",border: "border-emerald-100",hover: "hover:shadow-[0_4px_20px_rgba(5,150,105,0.1)]" },
+  amber:  { bg: "bg-amber-50",   text: "text-amber-600",  border: "border-amber-100",  hover: "hover:shadow-[0_4px_20px_rgba(217,119,6,0.1)]" },
+  purple: { bg: "bg-violet-50",  text: "text-violet-600", border: "border-violet-100", hover: "hover:shadow-[0_4px_20px_rgba(124,58,237,0.1)]" },
 };
 
 export function StatCard({ title, value, icon, color = "blue", subtitle, trend }: StatCardProps) {
@@ -77,22 +77,17 @@ export function StatCard({ title, value, icon, color = "blue", subtitle, trend }
   return (
     <div
       className={cn(
-        "bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[14px] p-5",
-        "shadow-[0_2px_16px_rgba(0,0,0,0.4)]",
-        "transition-all duration-200 hover:border-[var(--border-strong)]",
-        c.hover,
-        "relative"
+        "bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] p-5",
+        "shadow-[var(--shadow-card)] transition-all duration-200",
+        c.hover
       )}
     >
-      {/* Top-edge accent line — uses pre-resolved class to keep Tailwind safe */}
-      <div className={cn("absolute top-0 left-4 right-4 h-px opacity-50 rounded-full", c.accent)} />
-
-      <div className="flex items-start justify-between gap-3 mt-1">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0 space-y-1.5">
-          <p className="text-[11px] font-semibold text-[var(--text-secondary)] tracking-[0.07em] uppercase">
+          <p className="text-[11px] font-semibold text-[var(--text-muted)] tracking-[0.07em] uppercase">
             {title}
           </p>
-          <p className="text-[26px] font-bold text-[var(--text-primary)] leading-none tracking-tight font-[family-name:var(--font-display)]">
+          <p className="text-[28px] font-bold text-[var(--text-primary)] leading-none tracking-tight font-[family-name:var(--font-display)]">
             {value}
           </p>
           {subtitle && (

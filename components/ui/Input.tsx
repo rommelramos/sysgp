@@ -39,7 +39,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               "w-full bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)]",
               "placeholder:text-[var(--text-muted)] rounded-[10px] px-3 py-2.5 text-sm",
               "transition-all duration-150",
-              "focus:outline-none focus:border-[var(--accent-primary)] focus:ring-3 focus:ring-[rgba(79,142,247,0.18)]",
+              "focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.12)]",
               "disabled:opacity-40 disabled:cursor-not-allowed",
               icon && "pl-9",
               rightIcon && "pr-9",
@@ -92,7 +92,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             "w-full bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)]",
             "placeholder:text-[var(--text-muted)] rounded-[10px] px-3 py-2.5 text-sm resize-none",
             "transition-all duration-150",
-            "focus:outline-none focus:border-[var(--accent-primary)] focus:ring-3 focus:ring-[rgba(79,142,247,0.18)]",
+            "focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.12)]",
             "disabled:opacity-40 disabled:cursor-not-allowed",
             error && "border-red-400/50",
             className
@@ -138,7 +138,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             "w-full bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)]",
             "rounded-[10px] px-3 py-2.5 text-sm appearance-none cursor-pointer",
             "transition-all duration-150",
-            "focus:outline-none focus:border-[var(--accent-primary)] focus:ring-3 focus:ring-[rgba(79,142,247,0.18)]",
+            "focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.12)]",
             "disabled:opacity-40 disabled:cursor-not-allowed",
             error && "border-red-400/50",
             className
