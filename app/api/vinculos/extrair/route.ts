@@ -41,6 +41,7 @@ const OUTPUT_SCHEMA = {
           dataFim: { type: "string" },
         },
         required: ["nome"],
+        additionalProperties: false,
       },
     },
     metas: {
@@ -49,6 +50,7 @@ const OUTPUT_SCHEMA = {
         type: "object",
         properties: { descricao: { type: "string" } },
         required: ["descricao"],
+        additionalProperties: false,
       },
     },
   },
