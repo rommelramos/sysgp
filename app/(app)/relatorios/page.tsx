@@ -92,7 +92,7 @@ export default function RelatoriosPage() {
       </div>
 
       <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl p-6 space-y-5">
-        <div className="flex items-center gap-2 text-[var(--accent-primary)]">
+        <div className="flex items-center gap-2 text-[var(--accent-primary)]" style={{ marginLeft: '5px' }}>
           <FileText size={18} />
           <h2 className="text-base font-semibold text-[var(--text-primary)]">Configurar Relatório</h2>
         </div>

@@ -161,7 +161,7 @@ export default function ConfiguracoesPage() {
         {/* ── Conexão com o Banco ─────────────────────────────────── */}
         <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] shadow-[var(--shadow-card)]">
           {/* Header */}
-          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-[var(--border)]">
+          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-[var(--border)]" style={{ marginLeft: '5px' }}>
             <div className="w-7 h-7 rounded-[8px] bg-[var(--accent-primary)]/10 flex items-center justify-center">
               <Database size={14} className="text-[var(--accent-primary)]" />
             </div>
@@ -314,7 +314,7 @@ export default function ConfiguracoesPage() {
 
         {/* ── Log de Auditoria ────────────────────────────────────── */}
         <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] shadow-[var(--shadow-card)]">
-          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-[var(--border)]">
+          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-[var(--border)]" style={{ marginLeft: '5px' }}>
             <div className="w-7 h-7 rounded-[8px] bg-[var(--accent-secondary)]/10 flex items-center justify-center">
               <Shield size={14} className="text-[var(--accent-secondary)]" />
             </div>

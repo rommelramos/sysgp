@@ -347,7 +347,7 @@ export default function ProjetosPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 gap-3" style={{ marginLeft: '5px' }}>
-          <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center">
+          <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center" style={{ marginLeft: '5px' }}>
             <FolderKanban size={26} className="text-blue-300" />
           </div>
           <p className="text-sm font-semibold text-[var(--text-secondary)]">Nenhum projeto encontrado</p>

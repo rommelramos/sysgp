@@ -158,7 +158,7 @@ export default function DashboardPage() {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5" style={{ marginLeft: '5px' }}>
             <div className="w-7 h-7 rounded-[8px] bg-[var(--accent-primary)]/10 flex items-center justify-center">
               <Activity size={14} className="text-[var(--accent-primary)]" />
             </div>
@@ -179,7 +179,7 @@ export default function DashboardPage() {
           {loading && Array(5).fill(0).map((_, i) => <SkeletonRow key={i} />)}
 
           {!loading && data?.atividadesRecentes?.length === 0 && (
-            <div className="px-6 py-12 text-center">
+            <div className="px-6 py-12 text-center" style={{ marginLeft: '5px' }}>
               <div className="w-10 h-10 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center mx-auto mb-3">
                 <Activity size={18} className="text-[var(--text-muted)]" />
               </div>

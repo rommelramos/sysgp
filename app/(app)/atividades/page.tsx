@@ -109,7 +109,7 @@ export default function AtividadesPage() {
         <div className="space-y-3">
           {atividades.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 gap-3" style={{ marginLeft: '5px' }}>
-              <div className="w-12 h-12 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center" style={{ marginLeft: '5px' }}>
                 <FileText size={22} className="text-[var(--text-muted)]" />
               </div>
               <p className="text-sm font-medium text-[var(--text-secondary)]">Nenhuma atividade registrada</p>
