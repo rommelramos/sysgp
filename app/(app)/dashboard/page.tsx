@@ -77,7 +77,7 @@ export default function DashboardPage() {
     <div className="space-y-8 pb-4" style={{ marginLeft: '5px' }}>
 
       {/* Header */}
-      <div>
+      <div style={{ marginLeft: '5px' }}>
         <motion.h1
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}

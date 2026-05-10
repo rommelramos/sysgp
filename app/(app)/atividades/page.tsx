@@ -92,7 +92,7 @@ export default function AtividadesPage() {
   return (
     <div className="space-y-5" style={{ marginLeft: '5px' }}>
       <div className="flex items-center justify-between">
-        <div>
+        <div style={{ marginLeft: '5px' }}>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Atividades</h1>
           <p className="text-sm text-[var(--text-secondary)]">{total} atividade(s)</p>
         </div>
@@ -108,7 +108,7 @@ export default function AtividadesPage() {
       ) : (
         <div className="space-y-3">
           {atividades.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <div className="flex flex-col items-center justify-center py-20 gap-3" style={{ marginLeft: '5px' }}>
               <div className="w-12 h-12 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center">
                 <FileText size={22} className="text-[var(--text-muted)]" />
               </div>
@@ -125,7 +125,7 @@ export default function AtividadesPage() {
               className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl p-4 hover:shadow-[0_0_20px_rgba(37,99,235,0.1)] transition-all"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0" style={{ marginLeft: '5px' }}>
                   <h3 className="text-sm font-semibold text-[var(--text-primary)]">{a.titulo}</h3>
                   {a.descricao && (
                     <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2"

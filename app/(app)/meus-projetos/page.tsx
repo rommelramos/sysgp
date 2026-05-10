@@ -30,7 +30,7 @@ export default function MeusProjetosPage() {
 
   return (
     <div className="space-y-5" style={{ marginLeft: '5px' }}>
-      <div>
+      <div style={{ marginLeft: '5px' }}>
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Meus Projetos</h1>
         <p className="text-sm text-[var(--text-secondary)]">Projetos aos quais você está vinculado</p>
       </div>

@@ -160,7 +160,7 @@ function ProjectListRow({ projeto, index }: { projeto: Projeto; index: number })
         >
           <FolderKanban size={16} className="text-white" aria-hidden="true" />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0" style={{ marginLeft: '5px' }}>
           <h3 className="text-sm font-semibold text-[var(--text-primary)] truncate">{projeto.titulo}</h3>
           <p className="text-xs text-[var(--text-muted)] truncate">{projeto.coordenador.nomeCompleto}</p>
         </div>
@@ -259,7 +259,7 @@ export default function ProjetosPage() {
     <div className="space-y-6" style={{ marginLeft: '5px' }}>
       {/* Page header */}
       <div className="flex items-center justify-between">
-        <div>
+        <div style={{ marginLeft: '5px' }}>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Projetos</h1>
           <p className="text-sm text-[var(--text-muted)] mt-0.5">{total} projeto(s) no total</p>
         </div>
@@ -346,7 +346,7 @@ export default function ProjetosPage() {
           <div className="w-6 h-6 border-2 border-[var(--accent-primary)] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <div className="flex flex-col items-center justify-center py-24 gap-3" style={{ marginLeft: '5px' }}>
           <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center">
             <FolderKanban size={26} className="text-blue-300" />
           </div>

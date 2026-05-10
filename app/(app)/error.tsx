@@ -19,7 +19,7 @@ export default function Error({
       <div className="flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20">
         <AlertTriangle size={28} className="text-red-400" />
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2" style={{ marginLeft: '5px' }}>
         <h2 className="text-xl font-semibold text-[var(--text-primary)]">Erro ao carregar a página</h2>
         <p className="text-sm text-[var(--text-secondary)] max-w-sm">
           Ocorreu um erro inesperado. Tente novamente ou entre em contato com o suporte se o problema persistir.

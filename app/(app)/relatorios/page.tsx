@@ -86,7 +86,7 @@ export default function RelatoriosPage() {
 
   return (
     <div className="space-y-6 max-w-2xl" style={{ marginLeft: '5px' }}>
-      <div>
+      <div style={{ marginLeft: '5px' }}>
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Relatórios</h1>
         <p className="text-sm text-[var(--text-secondary)]">Gere relatórios periódicos de atividades</p>
       </div>
@@ -112,7 +112,7 @@ export default function RelatoriosPage() {
         </div>
 
         {membros.length > 0 && (
-          <div>
+          <div style={{ marginLeft: '5px' }}>
             <p className="text-sm font-medium text-[var(--text-secondary)] mb-2">
               Membros {user?.perfil !== "MEMBRO" && "(selecione)"}
             </p>
