@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Search, FolderKanban, Users, Clock, Grid3X3, List, Pencil } from "lucide-react";
+import { Plus, Search, FolderKanban, Users, Clock, Grid3X3, List, Pencil, FileText, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -224,6 +224,8 @@ export default function ProjetosPage() {
     dataInicio: "", dataFimPrevista: "", status: "EM_ANDAMENTO", coordenadorId: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [extraindo, setExtraindo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const { user } = useAuth();
 
@@ -273,6 +275,41 @@ export default function ProjetosPage() {
       coordenadorId: p.coordenador.id,
     });
     setModalOpen(true);
+  }
+
+  async function handleExtrair(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setExtraindo(true);
+    try {
+      const fd = new FormData();
+      fd.append("arquivo", file);
+      const res = await fetch("/api/projetos/extrair", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        toast("error", data.error || "Erro ao extrair dados do arquivo");
+        return;
+      }
+      const d = data.dados as Partial<typeof form>;
+      setForm(f => ({
+        ...f,
+        ...(d.titulo           ? { titulo: d.titulo }                         : {}),
+        ...(d.descricao        ? { descricao: d.descricao }                   : {}),
+        ...(d.areaTematica     ? { areaTematica: d.areaTematica }             : {}),
+        ...(d.areaConhecimento ? { areaConhecimento: d.areaConhecimento }     : {}),
+        ...(d.instituicaoExecucao     ? { instituicaoExecucao: d.instituicaoExecucao }     : {}),
+        ...(d.instituicaoFinanciadora ? { instituicaoFinanciadora: d.instituicaoFinanciadora } : {}),
+        ...(d.dataInicio       ? { dataInicio: d.dataInicio }                 : {}),
+        ...(d.dataFimPrevista  ? { dataFimPrevista: d.dataFimPrevista }       : {}),
+      }));
+      const filled = Object.keys(d).length;
+      toast("success", `${filled} campo(s) preenchido(s) automaticamente`);
+    } catch {
+      toast("error", "Erro ao processar o arquivo");
+    } finally {
+      setExtraindo(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -435,6 +472,27 @@ export default function ProjetosPage() {
       {/* Create/edit project modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTarget ? "Editar Projeto" : "Novo Projeto"} size="lg">
         <form onSubmit={handleSubmit} className="p-6 space-y-4" style={{ marginLeft: '5px', marginRight: '5px' }}>
+          {/* Import from file */}
+          <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+            <FileText size={16} className="text-blue-500 shrink-0" />
+            <p className="text-[12px] text-blue-700 flex-1">Importe um arquivo de texto para preencher os campos automaticamente com IA.</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.md,.doc,.docx"
+              className="hidden"
+              onChange={handleExtrair}
+            />
+            <button
+              type="button"
+              disabled={extraindo}
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-blue-700 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            >
+              {extraindo ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+              {extraindo ? "Extraindo..." : "Selecionar arquivo"}
+            </button>
+          </div>
           <Input label="Título" value={form.titulo} onChange={(e) => setForm(f => ({ ...f, titulo: e.target.value }))} required />
           <Textarea label="Descrição / Objetivo" value={form.descricao} onChange={(e) => setForm(f => ({ ...f, descricao: e.target.value }))} rows={3} />
           <div className="grid grid-cols-2 gap-4">
