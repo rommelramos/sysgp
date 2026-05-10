@@ -10,6 +10,7 @@ import { Input, Textarea, Select } from "@/components/ui/Input";
 import { FileUpload, UploadedFile } from "@/components/shared/FileUpload";
 import { useToast } from "@/components/ui/Toast";
 import { formatarData } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Atividade {
   id: string;
@@ -42,6 +43,7 @@ export default function AtividadesPage() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
+  const { user } = useAuth();
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -67,18 +69,18 @@ export default function AtividadesPage() {
   }, []);
 
   useEffect(() => {
-    if (!form.projetoId) { setMetas([]); return; }
-    // Load metas for user's binding in this project
-    fetch(`/api/vinculos?projetoId=${form.projetoId}&pageSize=50`)
+    if (!form.projetoId || !user?.id) { setMetas([]); return; }
+    // Load only the current user's metas for their binding in this project
+    fetch(`/api/vinculos?projetoId=${form.projetoId}&usuarioId=${user.id}&pageSize=10`)
       .then((r) => r.json())
       .then((d) => {
-        const allMetas: MetaOpt[] = [];
-        (d.data || []).forEach((v: { metas: MetaOpt[] }) => allMetas.push(...v.metas));
-        setMetas(allMetas);
-        if (!allMetas.find((m) => m.id === form.metaId)) setForm(f => ({ ...f, metaId: "" }));
+        const myMetas: MetaOpt[] = [];
+        (d.data || []).forEach((v: { metas: MetaOpt[] }) => myMetas.push(...v.metas));
+        setMetas(myMetas);
+        if (!myMetas.find((m) => m.id === form.metaId)) setForm(f => ({ ...f, metaId: "" }));
       })
       .catch(() => setMetas([]));
-  }, [form.projetoId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.projetoId, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function openCreate() {
     setEditTarget(null);
