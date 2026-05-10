@@ -10,8 +10,10 @@ const DROP_STATEMENTS = [
   "DROP TABLE IF EXISTS password_reset_tokens",
   "DROP TABLE IF EXISTS refresh_tokens",
   "DROP TABLE IF EXISTS atividades",
+  "DROP TABLE IF EXISTS metas",
   "DROP TABLE IF EXISTS projeto_membros",
   "DROP TABLE IF EXISTS projetos",
+  "DROP TABLE IF EXISTS convites_cadastro",
   "DROP TABLE IF EXISTS usuarios",
   "DROP TABLE IF EXISTS configuracao_sistema",
   "SET FOREIGN_KEY_CHECKS = 1",
@@ -28,6 +30,9 @@ const CREATE_STATEMENTS = [
     senha_hash VARCHAR(255) NOT NULL,
     perfil ENUM('MEMBRO','SUPERVISOR','ADMINISTRADOR') NOT NULL DEFAULT 'MEMBRO',
     supervisor_id BIGINT,
+    pode_ser_coordenador TINYINT(1) NOT NULL DEFAULT 0,
+    confirmado TINYINT(1) NOT NULL DEFAULT 1,
+    convite_id BIGINT,
     ativo TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -36,11 +41,28 @@ const CREATE_STATEMENTS = [
     UNIQUE KEY usuarios_email_key (email)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+  `CREATE TABLE IF NOT EXISTS convites_cadastro (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    token VARCHAR(64) NOT NULL,
+    descricao VARCHAR(255),
+    criado_por_id BIGINT NOT NULL,
+    uso_maximo INT NOT NULL DEFAULT 1,
+    uso_atual INT NOT NULL DEFAULT 0,
+    expira_em DATETIME,
+    ativo TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY convites_cadastro_token_key (token)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
   `CREATE TABLE IF NOT EXISTS projetos (
     id BIGINT NOT NULL AUTO_INCREMENT,
     titulo VARCHAR(255) NOT NULL,
     descricao TEXT,
     area_tematica VARCHAR(255),
+    instituicao_execucao VARCHAR(255),
+    instituicao_financiadora VARCHAR(255),
+    area_conhecimento VARCHAR(255),
     data_inicio DATE,
     data_fim_prevista DATE,
     status ENUM('EM_ANDAMENTO','CONCLUIDO','SUSPENSO') NOT NULL DEFAULT 'EM_ANDAMENTO',
@@ -62,7 +84,10 @@ const CREATE_STATEMENTS = [
     duracao_meses INT,
     data_inicio_bolsa DATE,
     data_fim_bolsa DATE,
+    carga_horaria INT,
     plano_trabalho_path VARCHAR(512),
+    resultados_esperados TEXT,
+    cronograma TEXT,
     status_vinculo ENUM('ATIVO','ENCERRADO','SUSPENSO') NOT NULL DEFAULT 'ATIVO',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -70,10 +95,21 @@ const CREATE_STATEMENTS = [
     UNIQUE KEY projeto_membros_unique (projeto_id, usuario_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+  `CREATE TABLE IF NOT EXISTS metas (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    projeto_membro_id BIGINT NOT NULL,
+    descricao TEXT NOT NULL,
+    ordem INT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
   `CREATE TABLE IF NOT EXISTS atividades (
     id BIGINT NOT NULL AUTO_INCREMENT,
     projeto_id BIGINT NOT NULL,
     usuario_id BIGINT NOT NULL,
+    meta_id BIGINT,
     titulo VARCHAR(255) NOT NULL,
     descricao LONGTEXT,
     data_inicio DATE,
@@ -140,25 +176,48 @@ const CREATE_STATEMENTS = [
     PRIMARY KEY (id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  `ALTER TABLE usuarios ADD CONSTRAINT fk_usuarios_supervisor
+  // Migração aditiva: adiciona colunas em tabelas pré-existentes (idempotente).
+  `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_ser_coordenador TINYINT(1) NOT NULL DEFAULT 0`,
+  `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS confirmado TINYINT(1) NOT NULL DEFAULT 1`,
+  `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS convite_id BIGINT NULL`,
+  `ALTER TABLE projetos ADD COLUMN IF NOT EXISTS instituicao_execucao VARCHAR(255) NULL`,
+  `ALTER TABLE projetos ADD COLUMN IF NOT EXISTS instituicao_financiadora VARCHAR(255) NULL`,
+  `ALTER TABLE projetos ADD COLUMN IF NOT EXISTS area_conhecimento VARCHAR(255) NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS data_inicio_bolsa DATE NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS data_fim_bolsa DATE NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS carga_horaria INT NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS resultados_esperados TEXT NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS cronograma TEXT NULL`,
+  `ALTER TABLE atividades ADD COLUMN IF NOT EXISTS meta_id BIGINT NULL`,
+
+  // Foreign keys — IF NOT EXISTS é idempotente (MariaDB 10.5+).
+  `ALTER TABLE usuarios ADD CONSTRAINT IF NOT EXISTS fk_usuarios_supervisor
     FOREIGN KEY (supervisor_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE projetos ADD CONSTRAINT fk_projetos_coordenador
+  `ALTER TABLE usuarios ADD CONSTRAINT IF NOT EXISTS fk_usuarios_convite
+    FOREIGN KEY (convite_id) REFERENCES convites_cadastro(id)`,
+  `ALTER TABLE convites_cadastro ADD CONSTRAINT IF NOT EXISTS fk_convites_criado_por
+    FOREIGN KEY (criado_por_id) REFERENCES usuarios(id)`,
+  `ALTER TABLE projetos ADD CONSTRAINT IF NOT EXISTS fk_projetos_coordenador
     FOREIGN KEY (coordenador_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE projeto_membros ADD CONSTRAINT fk_pm_projeto
+  `ALTER TABLE projeto_membros ADD CONSTRAINT IF NOT EXISTS fk_pm_projeto
     FOREIGN KEY (projeto_id) REFERENCES projetos(id)`,
-  `ALTER TABLE projeto_membros ADD CONSTRAINT fk_pm_usuario
+  `ALTER TABLE projeto_membros ADD CONSTRAINT IF NOT EXISTS fk_pm_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE atividades ADD CONSTRAINT fk_atividades_projeto
+  `ALTER TABLE metas ADD CONSTRAINT IF NOT EXISTS fk_metas_projeto_membro
+    FOREIGN KEY (projeto_membro_id) REFERENCES projeto_membros(id) ON DELETE CASCADE`,
+  `ALTER TABLE atividades ADD CONSTRAINT IF NOT EXISTS fk_atividades_projeto
     FOREIGN KEY (projeto_id) REFERENCES projetos(id)`,
-  `ALTER TABLE atividades ADD CONSTRAINT fk_atividades_usuario
+  `ALTER TABLE atividades ADD CONSTRAINT IF NOT EXISTS fk_atividades_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE atividade_documentos ADD CONSTRAINT fk_ad_atividade
+  `ALTER TABLE atividades ADD CONSTRAINT IF NOT EXISTS fk_atividades_meta
+    FOREIGN KEY (meta_id) REFERENCES metas(id)`,
+  `ALTER TABLE atividade_documentos ADD CONSTRAINT IF NOT EXISTS fk_ad_atividade
     FOREIGN KEY (atividade_id) REFERENCES atividades(id) ON DELETE CASCADE`,
-  `ALTER TABLE password_reset_tokens ADD CONSTRAINT fk_prt_usuario
+  `ALTER TABLE password_reset_tokens ADD CONSTRAINT IF NOT EXISTS fk_prt_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE refresh_tokens ADD CONSTRAINT fk_rt_usuario
+  `ALTER TABLE refresh_tokens ADD CONSTRAINT IF NOT EXISTS fk_rt_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE audit_log ADD CONSTRAINT fk_al_usuario
+  `ALTER TABLE audit_log ADD CONSTRAINT IF NOT EXISTS fk_al_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
 ];
 
@@ -223,8 +282,13 @@ export async function POST(req: NextRequest) {
         const msg = err instanceof Error ? err.message : String(err);
         if (
           msg.includes("Duplicate key name") ||
+          msg.includes("Duplicate column name") ||
+          msg.includes("Duplicate foreign key") ||
+          msg.includes("no: 1826") ||
           msg.includes("errno: 121") ||
-          msg.includes("ER_DUP_KEY")
+          msg.includes("ER_DUP_KEY") ||
+          msg.includes("ER_DUP_FIELDNAME") ||
+          msg.includes("ER_FK_DUP_NAME")
         ) {
           executados.push(`SKIP (já existe): ${stmt.trim().split("\n")[0].slice(0, 55)}`);
         } else {
