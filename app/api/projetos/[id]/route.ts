@@ -54,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const parsed = projetoSchema.partial().safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 });
 
-  const { titulo, descricao, areaTematica, dataInicio, dataFimPrevista, status, coordenadorId } = parsed.data;
+  const { titulo, descricao, areaTematica, instituicaoExecucao, instituicaoFinanciadora, areaConhecimento, dataInicio, dataFimPrevista, status, coordenadorId } = parsed.data;
 
   const projeto = await prisma.projeto.update({
     where: { id: BigInt(id) },
@@ -62,6 +62,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(titulo && { titulo }),
       ...(descricao !== undefined && { descricao }),
       ...(areaTematica !== undefined && { areaTematica }),
+      ...(instituicaoExecucao !== undefined && { instituicaoExecucao: instituicaoExecucao || null }),
+      ...(instituicaoFinanciadora !== undefined && { instituicaoFinanciadora: instituicaoFinanciadora || null }),
+      ...(areaConhecimento !== undefined && { areaConhecimento: areaConhecimento || null }),
       ...(dataInicio !== undefined && { dataInicio: dataInicio ? new Date(dataInicio) : null }),
       ...(dataFimPrevista !== undefined && { dataFimPrevista: dataFimPrevista ? new Date(dataFimPrevista) : null }),
       ...(status && { status: status as "EM_ANDAMENTO" | "CONCLUIDO" | "SUSPENSO" }),

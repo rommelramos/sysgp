@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
       include: {
         projeto: { select: { id: true, titulo: true } },
         usuario: { select: { id: true, nomeCompleto: true } },
+        meta: { select: { id: true, descricao: true, ordem: true } },
         documentos: { select: { id: true, nomeOriginal: true, mimeType: true, tamanhoBytes: true } },
       },
       skip: (page - 1) * pageSize,
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
   const parsed = atividadeSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 });
 
-  const { projetoId, titulo, descricao, dataInicio, dataFim } = parsed.data;
+  const { projetoId, metaId, titulo, descricao, dataInicio, dataFim } = parsed.data;
 
   const vinculo = await prisma.projetoMembro.findFirst({
     where: { projetoId: BigInt(projetoId), usuarioId: BigInt(session.id), statusVinculo: "ATIVO" },
@@ -79,6 +80,7 @@ export async function POST(req: NextRequest) {
     data: {
       projetoId: BigInt(projetoId),
       usuarioId: BigInt(session.id),
+      metaId: metaId ? BigInt(metaId) : null,
       titulo,
       descricao: descricao || null,
       dataInicio: dataInicio ? new Date(dataInicio) : null,

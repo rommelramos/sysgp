@@ -60,13 +60,16 @@ export async function POST(req: NextRequest) {
   const parsed = projetoSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 });
 
-  const { titulo, descricao, areaTematica, dataInicio, dataFimPrevista, status, coordenadorId } = parsed.data;
+  const { titulo, descricao, areaTematica, instituicaoExecucao, instituicaoFinanciadora, areaConhecimento, dataInicio, dataFimPrevista, status, coordenadorId } = parsed.data;
 
   const projeto = await prisma.projeto.create({
     data: {
       titulo,
       descricao: descricao || null,
       areaTematica: areaTematica || null,
+      instituicaoExecucao: instituicaoExecucao || null,
+      instituicaoFinanciadora: instituicaoFinanciadora || null,
+      areaConhecimento: areaConhecimento || null,
       dataInicio: dataInicio ? new Date(dataInicio) : null,
       dataFimPrevista: dataFimPrevista ? new Date(dataFimPrevista) : null,
       status: status as "EM_ANDAMENTO" | "CONCLUIDO" | "SUSPENSO",

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Plus, Search, RefreshCw, Eye, EyeOff } from "lucide-react";
+import { Plus, Search, RefreshCw, Eye, EyeOff, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -14,10 +14,13 @@ interface Usuario {
   id: string;
   nomeCompleto: string;
   cpf: string;
+  rg: string | null;
+  dataNasc: string | null;
   email: string;
   perfil: string;
   ativo: boolean;
   createdAt: string;
+  supervisorId: string | null;
   supervisor: { nomeCompleto: string } | null;
 }
 
@@ -34,10 +37,16 @@ export default function UsuariosPage() {
   const [busca, setBusca] = useState("");
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Usuario | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [form, setForm] = useState({
     nomeCompleto: "", cpf: "", rg: "", dataNasc: "", email: "",
     senha: "", confirmarSenha: "", perfil: "MEMBRO", supervisorId: "",
   });
+  const [editForm, setEditForm] = useState({
+    nomeCompleto: "", rg: "", dataNasc: "", perfil: "MEMBRO", supervisorId: "", ativo: true,
+  });
+  const [supervisores, setSupervisores] = useState<Array<{ id: string; nomeCompleto: string }>>([]);
   const [showSenha, setShowSenha] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
@@ -58,6 +67,13 @@ export default function UsuariosPage() {
 
   useEffect(() => { carregar(); }, [carregar]);
 
+  useEffect(() => {
+    fetch("/api/usuarios?pageSize=200")
+      .then((r) => r.json())
+      .then((d) => setSupervisores((d.data || []).filter((u: Usuario) => u.perfil === "SUPERVISOR" || u.perfil === "ADMINISTRADOR")))
+      .catch(() => {});
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -72,6 +88,41 @@ export default function UsuariosPage() {
       toast("success", "Usuário criado com sucesso!");
       setModalOpen(false);
       setForm({ nomeCompleto: "", cpf: "", rg: "", dataNasc: "", email: "", senha: "", confirmarSenha: "", perfil: "MEMBRO", supervisorId: "" });
+      carregar();
+    } catch {
+      toast("error", "Erro de comunicação com o servidor");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function openEditModal(u: Usuario) {
+    setEditTarget(u);
+    setEditForm({
+      nomeCompleto: u.nomeCompleto,
+      rg: u.rg || "",
+      dataNasc: u.dataNasc ? u.dataNasc.slice(0, 10) : "",
+      perfil: u.perfil,
+      supervisorId: u.supervisorId || "",
+      ativo: u.ativo,
+    });
+    setEditModalOpen(true);
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/usuarios/${editTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast("error", data.error || "Erro ao atualizar usuário"); return; }
+      toast("success", "Usuário atualizado com sucesso!");
+      setEditModalOpen(false);
       carregar();
     } catch {
       toast("error", "Erro de comunicação com o servidor");
@@ -126,7 +177,7 @@ export default function UsuariosPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--bg-elevated)]">
-                {["Nome", "E-mail", "CPF", "Perfil", "Supervisor", "Status", "Cadastro", ""].map((h) => (
+                {["Nome", "E-mail", "CPF", "Perfil", "Supervisor", "Status", "Cadastro", "", ""].map((h) => (
                   <th key={h} className="text-left px-5 py-4 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
@@ -155,6 +206,11 @@ export default function UsuariosPage() {
                     <td className="px-5 py-4"><Badge value={u.ativo ? "ATIVO" : "ENCERRADO"} /></td>
                     <td className="px-5 py-4 text-xs font-mono text-[var(--text-secondary)] whitespace-nowrap">{formatarData(u.createdAt)}</td>
                     <td className="px-5 py-4">
+                      <Button variant="ghost" size="sm" icon={<Pencil size={13} />} onClick={() => openEditModal(u)}>
+                        Editar
+                      </Button>
+                    </td>
+                    <td className="px-5 py-4">
                       <Button variant="ghost" size="sm" onClick={() => toggleAtivo(u.id, u.ativo)}>
                         {u.ativo ? "Inativar" : "Ativar"}
                       </Button>
@@ -176,6 +232,38 @@ export default function UsuariosPage() {
           </div>
         )}
       </div>
+
+      {/* Edit User Modal */}
+      <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} title="Editar Usuário" size="lg">
+        <form onSubmit={handleEdit} className="p-6 space-y-4" style={{ marginLeft: '5px', marginRight: '5px' }}>
+          <Input label="Nome Completo" value={editForm.nomeCompleto} onChange={(e) => setEditForm(f => ({ ...f, nomeCompleto: e.target.value }))} required />
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="RG" value={editForm.rg} onChange={(e) => setEditForm(f => ({ ...f, rg: e.target.value }))} />
+            <Input label="Data de Nascimento" type="date" value={editForm.dataNasc} onChange={(e) => setEditForm(f => ({ ...f, dataNasc: e.target.value }))} />
+            <Select label="Perfil" value={editForm.perfil} onChange={(e) => setEditForm(f => ({ ...f, perfil: e.target.value }))} options={perfilOpts} required />
+            <Select
+              label="Supervisor"
+              value={editForm.supervisorId}
+              onChange={(e) => setEditForm(f => ({ ...f, supervisorId: e.target.value }))}
+              options={supervisores.map((s) => ({ value: s.id, label: s.nomeCompleto }))}
+              placeholder="Nenhum"
+            />
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={editForm.ativo}
+              onChange={(e) => setEditForm(f => ({ ...f, ativo: e.target.checked }))}
+              className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent-primary)]"
+            />
+            <span className="text-sm text-[var(--text-primary)]">Usuário ativo</span>
+          </label>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" type="button" onClick={() => setEditModalOpen(false)}>Cancelar</Button>
+            <Button type="submit" loading={submitting}>Salvar Alterações</Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Usuário" size="lg">
         <form onSubmit={handleSubmit} className="p-6 space-y-4" style={{ marginLeft: '5px', marginRight: '5px' }}>

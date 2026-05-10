@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Users, FolderKanban, FileText,
-  Share2, Settings, Activity, LogOut, BookOpen,
+  Link2, Share2, Settings, Activity, LogOut, BookOpen,
   PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,9 +24,10 @@ const navItems: NavItem[] = [
   { href: "/usuarios",           label: "Usuários",     icon: Users,        perfis: ["ADMINISTRADOR"] },
   { href: "/projetos",           label: "Projetos",     icon: FolderKanban, perfis: ["ADMINISTRADOR", "SUPERVISOR"] },
   { href: "/meus-projetos",      label: "Meus Projetos",icon: BookOpen,     perfis: ["MEMBRO", "SUPERVISOR"] },
+  { href: "/vinculos",           label: "Vínculos",     icon: Share2,       perfis: ["ADMINISTRADOR", "SUPERVISOR"] },
   { href: "/atividades",         label: "Atividades",   icon: Activity },
   { href: "/relatorios",         label: "Relatórios",   icon: FileText },
-  { href: "/relacoes",           label: "Relações",     icon: Share2 },
+  { href: "/relacoes",           label: "Relações",     icon: Link2 },
   { href: "/admin/configuracoes",label: "Configurações",icon: Settings,     perfis: ["ADMINISTRADOR"] },
 ];
 

@@ -4,6 +4,9 @@ export const projetoSchema = z.object({
   titulo: z.string().min(3, "Título obrigatório"),
   descricao: z.string().optional(),
   areaTematica: z.string().optional(),
+  instituicaoExecucao: z.string().optional(),
+  instituicaoFinanciadora: z.string().optional(),
+  areaConhecimento: z.string().optional(),
   dataInicio: z.string().optional(),
   dataFimPrevista: z.string().optional(),
   status: z.enum(["EM_ANDAMENTO", "CONCLUIDO", "SUSPENSO"]).default("EM_ANDAMENTO"),
@@ -19,11 +22,21 @@ export const membroProjetoSchema = z.object({
   duracaoMeses: z.number().int().positive().optional().nullable(),
   dataInicioBolsa: z.string().optional().nullable(),
   dataFimBolsa: z.string().optional().nullable(),
+  cargaHoraria: z.number().int().positive().optional().nullable(),
+  resultadosEsperados: z.string().optional().nullable(),
+  cronograma: z.string().optional().nullable(),
   statusVinculo: z.enum(["ATIVO", "ENCERRADO", "SUSPENSO"]).default("ATIVO"),
+  metas: z.array(z.object({ descricao: z.string().min(1), ordem: z.number().int().default(1) })).optional(),
+});
+
+export const metaSchema = z.object({
+  descricao: z.string().min(1, "Descrição da meta obrigatória"),
+  ordem: z.number().int().default(1),
 });
 
 export const atividadeSchema = z.object({
   projetoId: z.string().min(1, "Projeto obrigatório"),
+  metaId: z.string().optional().nullable(),
   titulo: z.string().min(3, "Título obrigatório"),
   descricao: z.string().optional(),
   dataInicio: z.string().optional(),

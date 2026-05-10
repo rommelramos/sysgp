@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Plus, FileText } from "lucide-react";
+import { Plus, FileText, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -19,7 +19,14 @@ interface Atividade {
   dataFim: string | null;
   projeto: { id: string; titulo: string };
   usuario: { nomeCompleto: string };
+  meta: { id: string; descricao: string; ordem: number } | null;
   documentos: Array<{ id: string; nomeOriginal: string; mimeType: string }>;
+}
+
+interface MetaOpt {
+  id: string;
+  descricao: string;
+  ordem: number;
 }
 
 export default function AtividadesPage() {
@@ -28,8 +35,10 @@ export default function AtividadesPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Atividade | null>(null);
   const [projetos, setProjetos] = useState<Array<{ id: string; titulo: string }>>([]);
-  const [form, setForm] = useState({ projetoId: "", titulo: "", descricao: "", dataInicio: "", dataFim: "" });
+  const [metas, setMetas] = useState<MetaOpt[]>([]);
+  const [form, setForm] = useState({ projetoId: "", metaId: "", titulo: "", descricao: "", dataInicio: "", dataFim: "" });
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
@@ -57,20 +66,67 @@ export default function AtividadesPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!form.projetoId) { setMetas([]); return; }
+    // Load metas for user's binding in this project
+    fetch(`/api/vinculos?projetoId=${form.projetoId}&pageSize=50`)
+      .then((r) => r.json())
+      .then((d) => {
+        const allMetas: MetaOpt[] = [];
+        (d.data || []).forEach((v: { metas: MetaOpt[] }) => allMetas.push(...v.metas));
+        setMetas(allMetas);
+        if (!allMetas.find((m) => m.id === form.metaId)) setForm(f => ({ ...f, metaId: "" }));
+      })
+      .catch(() => setMetas([]));
+  }, [form.projetoId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function openCreate() {
+    setEditTarget(null);
+    setForm({ projetoId: "", metaId: "", titulo: "", descricao: "", dataInicio: "", dataFim: "" });
+    setUploadedFiles([]);
+    setModalOpen(true);
+  }
+
+  function openEdit(a: Atividade) {
+    setEditTarget(a);
+    setForm({
+      projetoId: a.projeto.id,
+      metaId: a.meta?.id || "",
+      titulo: a.titulo,
+      descricao: a.descricao || "",
+      dataInicio: a.dataInicio ? a.dataInicio.slice(0, 10) : "",
+      dataFim: a.dataFim ? a.dataFim.slice(0, 10) : "",
+    });
+    setUploadedFiles([]);
+    setModalOpen(true);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    const res = await fetch("/api/atividades", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    const payload = { ...form, metaId: form.metaId || null };
+
+    let res: Response;
+    if (editTarget) {
+      res = await fetch(`/api/atividades/${editTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      res = await fetch("/api/atividades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
+
     const data = await res.json();
 
-    if (!res.ok) { toast("error", data.error || "Erro ao criar atividade"); setSubmitting(false); return; }
+    if (!res.ok) { toast("error", data.error || "Erro ao salvar atividade"); setSubmitting(false); return; }
 
-    // Attach uploaded files
-    if (uploadedFiles.length > 0) {
+    // Attach uploaded files only on create
+    if (!editTarget && uploadedFiles.length > 0) {
       await fetch(`/api/atividades/${data.id}/documentos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -78,9 +134,9 @@ export default function AtividadesPage() {
       });
     }
 
-    toast("success", "Atividade registrada com sucesso!");
+    toast("success", editTarget ? "Atividade atualizada!" : "Atividade registrada com sucesso!");
     setModalOpen(false);
-    setForm({ projetoId: "", titulo: "", descricao: "", dataInicio: "", dataFim: "" });
+    setForm({ projetoId: "", metaId: "", titulo: "", descricao: "", dataInicio: "", dataFim: "" });
     setUploadedFiles([]);
     carregar();
     setSubmitting(false);
@@ -96,7 +152,7 @@ export default function AtividadesPage() {
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Atividades</h1>
           <p className="text-sm text-[var(--text-secondary)]">{total} atividade(s)</p>
         </div>
-        <Button icon={<Plus size={16} />} onClick={() => setModalOpen(true)}>
+        <Button icon={<Plus size={16} />} onClick={openCreate}>
           Nova Atividade
         </Button>
       </div>
@@ -127,9 +183,13 @@ export default function AtividadesPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0" style={{ marginLeft: '5px' }}>
                   <h3 className="text-sm font-semibold text-[var(--text-primary)]">{a.titulo}</h3>
+                  {a.meta && (
+                    <p className="text-[11px] text-[var(--accent-primary)] mt-0.5 font-medium">
+                      Meta {a.meta.ordem}: {a.meta.descricao}
+                    </p>
+                  )}
                   {a.descricao && (
-                    <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2"
-                      dangerouslySetInnerHTML={{ __html: a.descricao.slice(0, 200) }} />
+                    <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2">{a.descricao.slice(0, 200)}</p>
                   )}
                   <div className="flex items-center gap-3 mt-2 text-xs text-[var(--text-secondary)]">
                     <span>{a.projeto.titulo}</span>
@@ -138,12 +198,17 @@ export default function AtividadesPage() {
                     {a.dataInicio && <><span>•</span><span className="font-mono">{formatarData(a.dataInicio)} a {formatarData(a.dataFim)}</span></>}
                   </div>
                 </div>
-                {a.documentos.length > 0 && (
-                  <div className="flex items-center gap-1 text-xs text-[var(--accent-secondary)]">
-                    <FileText size={12} />
-                    {a.documentos.length}
-                  </div>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {a.documentos.length > 0 && (
+                    <div className="flex items-center gap-1 text-xs text-[var(--accent-secondary)]">
+                      <FileText size={12} />
+                      {a.documentos.length}
+                    </div>
+                  )}
+                  <Button variant="ghost" size="sm" icon={<Pencil size={13} />} onClick={() => openEdit(a)}>
+                    Editar
+                  </Button>
+                </div>
               </div>
             </motion.div>
           ))}
@@ -158,16 +223,26 @@ export default function AtividadesPage() {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nova Atividade" size="lg">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTarget ? "Editar Atividade" : "Nova Atividade"} size="lg">
         <form onSubmit={handleSubmit} className="p-6 space-y-4" style={{ marginLeft: '5px', marginRight: '5px' }}>
           <Select
             label="Projeto"
             value={form.projetoId}
-            onChange={(e) => setForm(f => ({ ...f, projetoId: e.target.value }))}
+            onChange={(e) => setForm(f => ({ ...f, projetoId: e.target.value, metaId: "" }))}
             options={projetos.map((p) => ({ value: p.id, label: p.titulo }))}
             placeholder="Selecione um projeto..."
             required
+            disabled={!!editTarget}
           />
+          {metas.length > 0 && (
+            <Select
+              label="Meta do Plano de Trabalho (opcional)"
+              value={form.metaId}
+              onChange={(e) => setForm(f => ({ ...f, metaId: e.target.value }))}
+              options={metas.map((m) => ({ value: m.id, label: `Meta ${m.ordem}: ${m.descricao}` }))}
+              placeholder="Selecione uma meta..."
+            />
+          )}
           <Input label="Título" value={form.titulo} onChange={(e) => setForm(f => ({ ...f, titulo: e.target.value }))} required />
           <Textarea
             label="Descrição"
@@ -180,15 +255,17 @@ export default function AtividadesPage() {
             <Input label="Data de Início" type="date" value={form.dataInicio} onChange={(e) => setForm(f => ({ ...f, dataInicio: e.target.value }))} />
             <Input label="Data de Fim" type="date" value={form.dataFim} onChange={(e) => setForm(f => ({ ...f, dataFim: e.target.value }))} />
           </div>
-          <div>
-            <label className="text-sm font-medium text-[var(--text-secondary)] block mb-2">
-              Documentos Comprobatórios
-            </label>
-            <FileUpload onUpload={(files) => setUploadedFiles(f => [...f, ...files])} maxFiles={10} />
-          </div>
+          {!editTarget && (
+            <div>
+              <label className="text-sm font-medium text-[var(--text-secondary)] block mb-2">
+                Documentos Comprobatórios
+              </label>
+              <FileUpload onUpload={(files) => setUploadedFiles(f => [...f, ...files])} maxFiles={10} />
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" type="button" onClick={() => setModalOpen(false)}>Cancelar</Button>
-            <Button type="submit" loading={submitting}>Registrar Atividade</Button>
+            <Button type="submit" loading={submitting}>{editTarget ? "Salvar Alterações" : "Registrar Atividade"}</Button>
           </div>
         </form>
       </Modal>

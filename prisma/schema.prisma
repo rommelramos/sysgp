@@ -57,17 +57,20 @@ model Usuario {
 }
 
 model Projeto {
-  id              BigInt        @id @default(autoincrement())
-  titulo          String        @db.VarChar(255)
-  descricao       String?       @db.Text
-  areaTematica    String?       @map("area_tematica") @db.VarChar(255)
-  dataInicio      DateTime?     @map("data_inicio") @db.Date
-  dataFimPrevista DateTime?     @map("data_fim_prevista") @db.Date
-  status          StatusProjeto @default(EM_ANDAMENTO)
-  coordenadorId   BigInt        @map("coordenador_id")
-  arquivoPath     String?       @map("arquivo_path") @db.VarChar(512)
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id                      BigInt        @id @default(autoincrement())
+  titulo                  String        @db.VarChar(255)
+  descricao               String?       @db.Text
+  areaTematica            String?       @map("area_tematica") @db.VarChar(255)
+  instituicaoExecucao     String?       @map("instituicao_execucao") @db.VarChar(255)
+  instituicaoFinanciadora String?       @map("instituicao_financiadora") @db.VarChar(255)
+  areaConhecimento        String?       @map("area_conhecimento") @db.VarChar(255)
+  dataInicio              DateTime?     @map("data_inicio") @db.Date
+  dataFimPrevista         DateTime?     @map("data_fim_prevista") @db.Date
+  status                  StatusProjeto @default(EM_ANDAMENTO)
+  coordenadorId           BigInt        @map("coordenador_id")
+  arquivoPath             String?       @map("arquivo_path") @db.VarChar(512)
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @updatedAt @map("updated_at")
 
   coordenador Usuario         @relation("CoordenadorProjeto", fields: [coordenadorId], references: [id])
   membros     ProjetoMembro[]
@@ -77,32 +80,51 @@ model Projeto {
 }
 
 model ProjetoMembro {
-  id                BigInt        @id @default(autoincrement())
-  projetoId         BigInt        @map("projeto_id")
-  usuarioId         BigInt        @map("usuario_id")
-  funcao            String?       @db.VarChar(255)
-  isCoordenador     Boolean       @default(false) @map("is_coordenador")
-  isBolsista        Boolean       @default(false) @map("is_bolsista")
-  valorBolsa        Decimal?      @map("valor_bolsa") @db.Decimal(10, 2)
-  duracaoMeses      Int?          @map("duracao_meses")
-  dataInicioBolsa   DateTime?     @map("data_inicio_bolsa") @db.Date
-  dataFimBolsa      DateTime?     @map("data_fim_bolsa") @db.Date
-  planoTrabalhoPath String?       @map("plano_trabalho_path") @db.VarChar(512)
-  statusVinculo     StatusVinculo @default(ATIVO) @map("status_vinculo")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  id                  BigInt        @id @default(autoincrement())
+  projetoId           BigInt        @map("projeto_id")
+  usuarioId           BigInt        @map("usuario_id")
+  funcao              String?       @db.VarChar(255)
+  isCoordenador       Boolean       @default(false) @map("is_coordenador")
+  isBolsista          Boolean       @default(false) @map("is_bolsista")
+  valorBolsa          Decimal?      @map("valor_bolsa") @db.Decimal(10, 2)
+  duracaoMeses        Int?          @map("duracao_meses")
+  dataInicioBolsa     DateTime?     @map("data_inicio_bolsa") @db.Date
+  dataFimBolsa        DateTime?     @map("data_fim_bolsa") @db.Date
+  cargaHoraria        Int?          @map("carga_horaria")
+  planoTrabalhoPath   String?       @map("plano_trabalho_path") @db.VarChar(512)
+  resultadosEsperados String?       @map("resultados_esperados") @db.Text
+  cronograma          String?       @db.Text
+  statusVinculo       StatusVinculo @default(ATIVO) @map("status_vinculo")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
 
-  projeto Projeto @relation(fields: [projetoId], references: [id])
-  usuario Usuario @relation(fields: [usuarioId], references: [id])
+  projeto    Projeto   @relation(fields: [projetoId], references: [id])
+  usuario    Usuario   @relation(fields: [usuarioId], references: [id])
+  metas      Meta[]
 
   @@unique([projetoId, usuarioId])
   @@map("projeto_membros")
+}
+
+model Meta {
+  id              BigInt        @id @default(autoincrement())
+  projetoMembroId BigInt        @map("projeto_membro_id")
+  descricao       String        @db.Text
+  ordem           Int           @default(1)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  projetoMembro ProjetoMembro @relation(fields: [projetoMembroId], references: [id], onDelete: Cascade)
+  atividades    Atividade[]
+
+  @@map("metas")
 }
 
 model Atividade {
   id         BigInt    @id @default(autoincrement())
   projetoId  BigInt    @map("projeto_id")
   usuarioId  BigInt    @map("usuario_id")
+  metaId     BigInt?   @map("meta_id")
   titulo     String    @db.VarChar(255)
   descricao  String?   @db.LongText
   dataInicio DateTime? @map("data_inicio") @db.Date
@@ -112,6 +134,7 @@ model Atividade {
 
   projeto    Projeto              @relation(fields: [projetoId], references: [id])
   usuario    Usuario              @relation(fields: [usuarioId], references: [id])
+  meta       Meta?                @relation(fields: [metaId], references: [id])
   documentos AtividadeDocumento[]
 
   @@map("atividades")

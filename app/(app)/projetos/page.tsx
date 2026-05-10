@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Search, FolderKanban, Users, Clock, Grid3X3, List } from "lucide-react";
+import { Plus, Search, FolderKanban, Users, Clock, Grid3X3, List, Pencil } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -18,6 +18,9 @@ interface Projeto {
   titulo: string;
   descricao: string | null;
   areaTematica: string | null;
+  instituicaoExecucao: string | null;
+  instituicaoFinanciadora: string | null;
+  areaConhecimento: string | null;
   dataInicio: string | null;
   dataFimPrevista: string | null;
   status: string;
@@ -86,7 +89,7 @@ function AvatarGroup({ count }: { count: number }) {
   );
 }
 
-function ProjectCard({ projeto, index }: { projeto: Projeto; index: number }) {
+function ProjectCard({ projeto, index, onEdit }: { projeto: Projeto; index: number; onEdit?: (p: Projeto) => void }) {
   const color = iconColors[index % iconColors.length];
   const progress = getProgress(projeto);
   const daysLeft = getDaysRemaining(projeto.dataFimPrevista);
@@ -126,15 +129,26 @@ function ProjectCard({ projeto, index }: { projeto: Projeto; index: number }) {
           </div>
         </div>
 
-        {/* Footer: avatars + progress */}
+        {/* Footer: avatars + progress + edit */}
         <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">
           <div className="flex flex-col gap-0.5">
             <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wide">Equipe</span>
             <AvatarGroup count={projeto._count.membros} />
           </div>
-          <div className="flex flex-col items-end gap-0.5">
-            <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wide">Progresso</span>
-            <span className="text-[20px] font-bold text-[var(--text-primary)] leading-none">{progress}%</span>
+          <div className="flex items-center gap-2">
+            {onEdit && (
+              <button
+                onClick={(e) => { e.preventDefault(); onEdit(projeto); }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--accent-primary)] hover:bg-blue-50 transition-colors"
+                aria-label="Editar projeto"
+              >
+                <Pencil size={13} />
+              </button>
+            )}
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wide">Progresso</span>
+              <span className="text-[20px] font-bold text-[var(--text-primary)] leading-none">{progress}%</span>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -142,7 +156,7 @@ function ProjectCard({ projeto, index }: { projeto: Projeto; index: number }) {
   );
 }
 
-function ProjectListRow({ projeto, index }: { projeto: Projeto; index: number }) {
+function ProjectListRow({ projeto, index, onEdit }: { projeto: Projeto; index: number; onEdit?: (p: Projeto) => void }) {
   const color = iconColors[index % iconColors.length];
   const progress = getProgress(projeto);
 
@@ -179,6 +193,15 @@ function ProjectListRow({ projeto, index }: { projeto: Projeto; index: number })
           </div>
         </div>
         <Badge value={projeto.status} />
+        {onEdit && (
+          <button
+            onClick={(e) => { e.preventDefault(); onEdit(projeto); }}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--accent-primary)] hover:bg-blue-50 transition-colors shrink-0"
+            aria-label="Editar projeto"
+          >
+            <Pencil size={13} />
+          </button>
+        )}
       </motion.div>
     </Link>
   );
@@ -193,10 +216,12 @@ export default function ProjetosPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Projeto | null>(null);
   const [supervisores, setSupervisores] = useState<Array<{ id: string; nomeCompleto: string }>>([]);
   const [form, setForm] = useState({
-    titulo: "", descricao: "", areaTematica: "", dataInicio: "",
-    dataFimPrevista: "", status: "EM_ANDAMENTO", coordenadorId: "",
+    titulo: "", descricao: "", areaTematica: "",
+    instituicaoExecucao: "", instituicaoFinanciadora: "", areaConhecimento: "",
+    dataInicio: "", dataFimPrevista: "", status: "EM_ANDAMENTO", coordenadorId: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
@@ -227,18 +252,43 @@ export default function ProjetosPage() {
     }
   }, [user]);
 
+  function openCreate() {
+    setEditTarget(null);
+    setForm({ titulo: "", descricao: "", areaTematica: "", instituicaoExecucao: "", instituicaoFinanciadora: "", areaConhecimento: "", dataInicio: "", dataFimPrevista: "", status: "EM_ANDAMENTO", coordenadorId: "" });
+    setModalOpen(true);
+  }
+
+  function openEdit(p: Projeto) {
+    setEditTarget(p);
+    setForm({
+      titulo: p.titulo,
+      descricao: p.descricao || "",
+      areaTematica: p.areaTematica || "",
+      instituicaoExecucao: p.instituicaoExecucao || "",
+      instituicaoFinanciadora: p.instituicaoFinanciadora || "",
+      areaConhecimento: p.areaConhecimento || "",
+      dataInicio: p.dataInicio ? p.dataInicio.slice(0, 10) : "",
+      dataFimPrevista: p.dataFimPrevista ? p.dataFimPrevista.slice(0, 10) : "",
+      status: p.status,
+      coordenadorId: p.coordenador.id,
+    });
+    setModalOpen(true);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    const res = await fetch("/api/projetos", {
-      method: "POST",
+    const url = editTarget ? `/api/projetos/${editTarget.id}` : "/api/projetos";
+    const method = editTarget ? "PATCH" : "POST";
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
     const data = await res.json();
     setSubmitting(false);
-    if (!res.ok) { toast("error", data.error || "Erro ao criar projeto"); return; }
-    toast("success", "Projeto criado com sucesso!");
+    if (!res.ok) { toast("error", data.error || "Erro ao salvar projeto"); return; }
+    toast("success", editTarget ? "Projeto atualizado!" : "Projeto criado com sucesso!");
     setModalOpen(false);
     carregar();
   }
@@ -264,7 +314,7 @@ export default function ProjetosPage() {
           <p className="text-sm text-[var(--text-muted)] mt-0.5">{total} projeto(s) no total</p>
         </div>
         {user?.perfil === "ADMINISTRADOR" && (
-          <Button icon={<Plus size={16} />} onClick={() => setModalOpen(true)}>
+          <Button icon={<Plus size={16} />} onClick={openCreate}>
             Novo Projeto
           </Button>
         )}
@@ -359,7 +409,7 @@ export default function ProjetosPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <AnimatePresence>
             {filtered.map((p, i) => (
-              <ProjectCard key={p.id} projeto={p} index={i} />
+              <ProjectCard key={p.id} projeto={p} index={i} onEdit={user?.perfil === "ADMINISTRADOR" ? openEdit : undefined} />
             ))}
           </AnimatePresence>
         </div>
@@ -367,7 +417,7 @@ export default function ProjetosPage() {
         <div className="space-y-2">
           <AnimatePresence>
             {filtered.map((p, i) => (
-              <ProjectListRow key={p.id} projeto={p} index={i} />
+              <ProjectListRow key={p.id} projeto={p} index={i} onEdit={user?.perfil === "ADMINISTRADOR" ? openEdit : undefined} />
             ))}
           </AnimatePresence>
         </div>
@@ -382,13 +432,16 @@ export default function ProjetosPage() {
         </div>
       )}
 
-      {/* New project modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Projeto" size="lg">
+      {/* Create/edit project modal */}
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTarget ? "Editar Projeto" : "Novo Projeto"} size="lg">
         <form onSubmit={handleSubmit} className="p-6 space-y-4" style={{ marginLeft: '5px', marginRight: '5px' }}>
           <Input label="Título" value={form.titulo} onChange={(e) => setForm(f => ({ ...f, titulo: e.target.value }))} required />
           <Textarea label="Descrição / Objetivo" value={form.descricao} onChange={(e) => setForm(f => ({ ...f, descricao: e.target.value }))} rows={3} />
-          <Input label="Área Temática" value={form.areaTematica} onChange={(e) => setForm(f => ({ ...f, areaTematica: e.target.value }))} />
           <div className="grid grid-cols-2 gap-4">
+            <Input label="Área Temática" value={form.areaTematica} onChange={(e) => setForm(f => ({ ...f, areaTematica: e.target.value }))} />
+            <Input label="Área de Conhecimento (CNPq)" value={form.areaConhecimento} onChange={(e) => setForm(f => ({ ...f, areaConhecimento: e.target.value }))} placeholder="Ex: Ciências Exatas e da Terra" />
+            <Input label="Instituição de Execução" value={form.instituicaoExecucao} onChange={(e) => setForm(f => ({ ...f, instituicaoExecucao: e.target.value }))} placeholder="Ex: UFPA" />
+            <Input label="Instituição Financiadora" value={form.instituicaoFinanciadora} onChange={(e) => setForm(f => ({ ...f, instituicaoFinanciadora: e.target.value }))} placeholder="Ex: CNPq, FAPESPA" />
             <Input label="Data de Início" type="date" value={form.dataInicio} onChange={(e) => setForm(f => ({ ...f, dataInicio: e.target.value }))} />
             <Input label="Término Previsto" type="date" value={form.dataFimPrevista} onChange={(e) => setForm(f => ({ ...f, dataFimPrevista: e.target.value }))} />
             <Select label="Status" value={form.status} onChange={(e) => setForm(f => ({ ...f, status: e.target.value }))} options={statusOpts} />
@@ -403,7 +456,7 @@ export default function ProjetosPage() {
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" type="button" onClick={() => setModalOpen(false)}>Cancelar</Button>
-            <Button type="submit" loading={submitting}>Criar Projeto</Button>
+            <Button type="submit" loading={submitting}>{editTarget ? "Salvar Alterações" : "Criar Projeto"}</Button>
           </div>
         </form>
       </Modal>
