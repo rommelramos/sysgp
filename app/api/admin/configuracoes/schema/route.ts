@@ -177,18 +177,18 @@ const CREATE_STATEMENTS = [
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
   // Migração aditiva: adiciona colunas em tabelas pré-existentes (idempotente).
-  `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_ser_coordenador TINYINT(1) NOT NULL DEFAULT 0`,
-  `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS confirmado TINYINT(1) NOT NULL DEFAULT 1`,
-  `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS convite_id BIGINT NULL`,
-  `ALTER TABLE projetos ADD COLUMN IF NOT EXISTS instituicao_execucao VARCHAR(255) NULL`,
-  `ALTER TABLE projetos ADD COLUMN IF NOT EXISTS instituicao_financiadora VARCHAR(255) NULL`,
-  `ALTER TABLE projetos ADD COLUMN IF NOT EXISTS area_conhecimento VARCHAR(255) NULL`,
-  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS data_inicio_bolsa DATE NULL`,
-  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS data_fim_bolsa DATE NULL`,
-  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS carga_horaria INT NULL`,
-  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS resultados_esperados TEXT NULL`,
-  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS cronograma TEXT NULL`,
-  `ALTER TABLE atividades ADD COLUMN IF NOT EXISTS meta_id BIGINT NULL`,
+  `ALTER TABLE usuarios ADD COLUMN pode_ser_coordenador TINYINT(1) NOT NULL DEFAULT 0`,
+  `ALTER TABLE usuarios ADD COLUMN confirmado TINYINT(1) NOT NULL DEFAULT 1`,
+  `ALTER TABLE usuarios ADD COLUMN convite_id BIGINT NULL`,
+  `ALTER TABLE projetos ADD COLUMN instituicao_execucao VARCHAR(255) NULL`,
+  `ALTER TABLE projetos ADD COLUMN instituicao_financiadora VARCHAR(255) NULL`,
+  `ALTER TABLE projetos ADD COLUMN area_conhecimento VARCHAR(255) NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN data_inicio_bolsa DATE NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN data_fim_bolsa DATE NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN carga_horaria INT NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN resultados_esperados TEXT NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN cronograma TEXT NULL`,
+  `ALTER TABLE atividades ADD COLUMN meta_id BIGINT NULL`,
 
   // Foreign keys — duplicatas ignoradas pelo catch (código 1826).
   `ALTER TABLE usuarios ADD CONSTRAINT fk_usuarios_supervisor
@@ -284,10 +284,11 @@ export async function POST(req: NextRequest) {
           msg.includes("Duplicate key name") ||
           msg.includes("Duplicate column name") ||
           msg.includes("Duplicate foreign key") ||
+          msg.includes("no: 1060") ||
           msg.includes("no: 1826") ||
           msg.includes("errno: 121") ||
-          msg.includes("ER_DUP_KEY") ||
           msg.includes("ER_DUP_FIELDNAME") ||
+          msg.includes("ER_DUP_KEY") ||
           msg.includes("ER_FK_DUP_NAME")
         ) {
           executados.push(`SKIP (já existe): ${stmt.trim().split("\n")[0].slice(0, 55)}`);
