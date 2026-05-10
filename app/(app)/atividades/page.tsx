@@ -90,7 +90,7 @@ export default function AtividadesPage() {
   const totalPages = Math.ceil(total / pageSize);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" style={{ marginLeft: '5px' }}>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Atividades</h1>

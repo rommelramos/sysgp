@@ -151,7 +151,7 @@ export default function RelacoesPage() {
   }
 
   return (
-    <div className="space-y-4 h-full flex flex-col">
+    <div className="space-y-4 h-full flex flex-col" style={{ marginLeft: '5px' }}>
       <div className="flex items-center justify-between flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Relações</h1>

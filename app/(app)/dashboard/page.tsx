@@ -74,7 +74,7 @@ export default function DashboardPage() {
   const firstName = user?.nome?.split(" ")[0];
 
   return (
-    <div className="space-y-8 pb-4">
+    <div className="space-y-8 pb-4" style={{ marginLeft: '5px' }}>
 
       {/* Header */}
       <div>

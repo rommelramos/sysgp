@@ -256,7 +256,7 @@ export default function ProjetosPage() {
   const totalPages = Math.ceil(total / pageSize);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={{ marginLeft: '5px' }}>
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
