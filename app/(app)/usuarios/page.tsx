@@ -121,13 +121,13 @@ export default function UsuariosPage() {
         </Button>
       </div>
 
-      <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-card)]">
+        <div className="overflow-x-auto rounded-xl">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-[var(--border)]">
+              <tr className="border-b border-[var(--border)] bg-[var(--bg-elevated)]">
                 {["Nome", "E-mail", "CPF", "Perfil", "Supervisor", "Status", "Cadastro", ""].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
+                  <th key={h} className="text-left px-5 py-4 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
                 ))}
@@ -145,16 +145,16 @@ export default function UsuariosPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: i * 0.02 }}
-                    className={`border-b border-[var(--border)] hover:bg-blue-50/50 transition-colors ${i % 2 === 1 ? "bg-[var(--bg-elevated)]" : ""}`}
+                    className={`border-b border-[var(--border)] hover:bg-blue-50/40 transition-colors ${i % 2 === 1 ? "bg-[var(--bg-elevated)]" : ""}`}
                   >
-                    <td className="px-4 py-3 text-sm font-medium text-[var(--text-primary)]">{u.nomeCompleto}</td>
-                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{u.email}</td>
-                    <td className="px-4 py-3 text-xs font-mono text-[var(--text-secondary)]">{u.cpf}</td>
-                    <td className="px-4 py-3"><Badge value={u.perfil} /></td>
-                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{u.supervisor?.nomeCompleto || "-"}</td>
-                    <td className="px-4 py-3"><Badge value={u.ativo ? "ATIVO" : "ENCERRADO"} /></td>
-                    <td className="px-4 py-3 text-xs font-mono text-[var(--text-secondary)]">{formatarData(u.createdAt)}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-4 text-sm font-medium text-[var(--text-primary)] whitespace-nowrap">{u.nomeCompleto}</td>
+                    <td className="px-5 py-4 text-sm text-[var(--text-secondary)]">{u.email}</td>
+                    <td className="px-5 py-4 text-xs font-mono text-[var(--text-secondary)] whitespace-nowrap">{u.cpf}</td>
+                    <td className="px-5 py-4"><Badge value={u.perfil} /></td>
+                    <td className="px-5 py-4 text-sm text-[var(--text-secondary)]">{u.supervisor?.nomeCompleto || "—"}</td>
+                    <td className="px-5 py-4"><Badge value={u.ativo ? "ATIVO" : "ENCERRADO"} /></td>
+                    <td className="px-5 py-4 text-xs font-mono text-[var(--text-secondary)] whitespace-nowrap">{formatarData(u.createdAt)}</td>
+                    <td className="px-5 py-4">
                       <Button variant="ghost" size="sm" onClick={() => toggleAtivo(u.id, u.ativo)}>
                         {u.ativo ? "Inativar" : "Ativar"}
                       </Button>
@@ -167,7 +167,7 @@ export default function UsuariosPage() {
         </div>
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)]">
+          <div className="flex items-center justify-between px-5 py-4 border-t border-[var(--border)]">
             <p className="text-xs text-[var(--text-secondary)]">Página {page} de {totalPages}</p>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Anterior</Button>

@@ -55,31 +55,46 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
 
   const sidebarContent = (
     <>
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-[var(--border)] overflow-hidden">
+      {/* Logo — collapse toggle lives here, fully inside the sidebar bounds */}
+      <div className="flex items-center h-16 border-b border-[var(--border)] px-3 gap-2 overflow-hidden shrink-0">
+        {/* App icon */}
         <div className="w-8 h-8 shrink-0 flex items-center justify-center">
           <div className="w-8 h-8 rounded-lg bg-[var(--accent-primary)] flex items-center justify-center shadow-[0_2px_8px_rgba(37,99,235,0.3)]">
             <FolderKanban size={16} className="text-white" aria-hidden="true" />
           </div>
         </div>
+
+        {/* App name */}
         <AnimatePresence initial={false}>
           {!collapsed && (
             <motion.div
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -8 }}
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: "auto" }}
+              exit={{ opacity: 0, width: 0 }}
               transition={{ duration: 0.16 }}
-              className="flex items-baseline gap-0.5"
+              className="flex items-baseline gap-0.5 overflow-hidden"
             >
-              <span className="font-[family-name:var(--font-display)] text-[17px] font-bold text-[var(--text-primary)] tracking-tight">
+              <span className="font-[family-name:var(--font-display)] text-[17px] font-bold text-[var(--text-primary)] tracking-tight whitespace-nowrap">
                 Sys
               </span>
-              <span className="font-[family-name:var(--font-display)] text-[17px] font-extrabold text-[var(--accent-primary)] tracking-tight">
+              <span className="font-[family-name:var(--font-display)] text-[17px] font-extrabold text-[var(--accent-primary)] tracking-tight whitespace-nowrap">
                 GP
               </span>
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Collapse toggle — desktop only, inside header row */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+          className="hidden md:flex ml-auto w-7 h-7 shrink-0 items-center justify-center rounded-md hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-all duration-150"
+        >
+          {collapsed
+            ? <ChevronRight size={14} aria-hidden="true" />
+            : <ChevronLeft size={14} aria-hidden="true" />
+          }
+        </button>
       </div>
 
       {/* Nav */}
@@ -95,10 +110,10 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
               aria-current={active ? "page" : undefined}
               onClick={onMobileClose}
               className={cn(
-                "flex items-center gap-3 h-10 rounded-[10px] transition-all duration-150 relative overflow-hidden",
+                "flex items-center gap-3 h-10 rounded-[10px] transition-all duration-150 overflow-hidden",
                 collapsed ? "px-0 justify-center" : "px-3",
                 active
-                  ? "bg-[var(--accent-primary)] text-white shadow-[0_2px_8px_rgba(37,99,235,0.25)]"
+                  ? "bg-[var(--accent-primary)] text-white shadow-[0_2px_8px_rgba(37,99,235,0.2)]"
                   : "text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
               )}
             >
@@ -129,7 +144,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
       </nav>
 
       {/* User + Logout */}
-      <div className="border-t border-[var(--border)] p-3 space-y-1">
+      <div className="border-t border-[var(--border)] p-3 space-y-1 shrink-0">
         <div className={cn(
           "flex items-center gap-3 px-2 py-2 rounded-[10px]",
           collapsed && "justify-center px-0"
@@ -178,15 +193,6 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           </AnimatePresence>
         </button>
       </div>
-
-      {/* Collapse toggle — desktop only */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
-        className="absolute -right-3.5 top-[68px] w-7 h-7 bg-white border border-[var(--border)] rounded-full hidden md:flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--accent-primary)] hover:border-[var(--accent-primary)] transition-all duration-150 shadow-sm z-10"
-      >
-        {collapsed ? <ChevronRight size={11} aria-hidden="true" /> : <ChevronLeft size={11} aria-hidden="true" />}
-      </button>
     </>
   );
 

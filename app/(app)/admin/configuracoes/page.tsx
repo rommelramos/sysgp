@@ -159,7 +159,7 @@ export default function ConfiguracoesPage() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
 
         {/* ── Conexão com o Banco ─────────────────────────────────── */}
-        <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] shadow-[var(--shadow-card)] overflow-hidden">
+        <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] shadow-[var(--shadow-card)]">
           {/* Header */}
           <div className="flex items-center gap-2.5 px-6 py-4 border-b border-[var(--border)]">
             <div className="w-7 h-7 rounded-[8px] bg-[var(--accent-primary)]/10 flex items-center justify-center">
@@ -184,7 +184,7 @@ export default function ConfiguracoesPage() {
                 onChange={(e) => handleUrlChange(e.target.value)}
                 placeholder="mysql://usuario@host:3306/nome_do_banco"
                 spellCheck={false}
-                className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-[10px] px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[var(--accent-primary)] focus:ring-[3px] focus:ring-[rgba(79,142,247,0.18)] transition-all"
+                className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-[10px] px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.12)] transition-all"
               />
               <p className="text-[11px] text-[var(--text-muted)] flex items-start gap-1.5">
                 <Info size={11} className="shrink-0 mt-0.5" />
@@ -209,7 +209,7 @@ export default function ConfiguracoesPage() {
                   value={senha}
                   onChange={(e) => handleSenhaChange(e.target.value)}
                   placeholder={hasPassword ? "Deixe em branco para usar DB_PASSWORD do servidor" : "Senha do banco de dados"}
-                  className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-[10px] pl-3 pr-10 py-2.5 text-sm focus:outline-none focus:border-[var(--accent-primary)] focus:ring-[3px] focus:ring-[rgba(79,142,247,0.18)] transition-all"
+                  className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-[10px] pl-3 pr-10 py-2.5 text-sm focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.12)] transition-all"
                 />
                 <button
                   type="button"
@@ -313,7 +313,7 @@ export default function ConfiguracoesPage() {
         </div>
 
         {/* ── Log de Auditoria ────────────────────────────────────── */}
-        <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] shadow-[var(--shadow-card)] overflow-hidden">
+        <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] shadow-[var(--shadow-card)]">
           <div className="flex items-center gap-2.5 px-6 py-4 border-b border-[var(--border)]">
             <div className="w-7 h-7 rounded-[8px] bg-[var(--accent-secondary)]/10 flex items-center justify-center">
               <Shield size={14} className="text-[var(--accent-secondary)]" />

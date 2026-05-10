@@ -154,7 +154,7 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3, duration: 0.4 }}
-        className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] overflow-hidden shadow-[var(--shadow-card)]"
+        className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-[14px] shadow-[var(--shadow-card)]"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
