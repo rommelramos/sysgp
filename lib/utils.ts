@@ -53,6 +53,10 @@ export function bigintToString(obj: unknown): unknown {
   if (obj instanceof Date) return obj.toISOString();
   if (Array.isArray(obj)) return obj.map(bigintToString);
   if (obj && typeof obj === "object") {
+    // Prisma Decimal — convert to JS number
+    if (typeof (obj as { toNumber?: unknown }).toNumber === "function") {
+      return (obj as { toNumber: () => number }).toNumber();
+    }
     return Object.fromEntries(
       Object.entries(obj as Record<string, unknown>).map(([k, v]) => [k, bigintToString(v)])
     );
