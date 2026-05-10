@@ -17,8 +17,10 @@ export async function GET(req: NextRequest) {
   const pageSize = parseInt(searchParams.get("pageSize") || "25");
   const busca = searchParams.get("busca") || "";
   const perfil = searchParams.get("perfil") || undefined;
+  const podeSerCoordenador = searchParams.get("podeSerCoordenador");
+  const confirmado = searchParams.get("confirmado");
 
-  const where = {
+  const where: Record<string, unknown> = {
     ...(busca
       ? {
           OR: [
@@ -29,6 +31,8 @@ export async function GET(req: NextRequest) {
         }
       : {}),
     ...(perfil ? { perfil: perfil as "MEMBRO" | "SUPERVISOR" | "ADMINISTRADOR" } : {}),
+    ...(podeSerCoordenador !== null ? { podeSerCoordenador: podeSerCoordenador === "true" } : {}),
+    ...(confirmado !== null ? { confirmado: confirmado === "true" } : {}),
   };
 
   const [total, usuarios] = await Promise.all([
@@ -39,8 +43,13 @@ export async function GET(req: NextRequest) {
         id: true,
         nomeCompleto: true,
         cpf: true,
+        rg: true,
+        dataNasc: true,
         email: true,
         perfil: true,
+        podeSerCoordenador: true,
+        confirmado: true,
+        supervisorId: true,
         ativo: true,
         createdAt: true,
         supervisor: { select: { id: true, nomeCompleto: true } },
@@ -74,7 +83,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 });
   }
 
-  const { nomeCompleto, cpf, rg, dataNasc, email, senha, perfil, supervisorId } = parsed.data;
+  const { nomeCompleto, cpf, rg, dataNasc, email, senha, perfil, supervisorId, podeSerCoordenador } = parsed.data;
 
   const existe = await prisma.usuario.findFirst({ where: { OR: [{ email }, { cpf }] } });
   if (existe) {
@@ -93,6 +102,8 @@ export async function POST(req: NextRequest) {
       senhaHash,
       perfil: perfil as "MEMBRO" | "SUPERVISOR" | "ADMINISTRADOR",
       supervisorId: supervisorId ? BigInt(supervisorId) : null,
+      podeSerCoordenador: podeSerCoordenador ?? false,
+      confirmado: true,
     },
     select: { id: true, nomeCompleto: true, email: true, perfil: true },
   });

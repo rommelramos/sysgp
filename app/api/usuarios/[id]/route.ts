@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const parsed = editarUsuarioSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 });
 
-  const { nomeCompleto, rg, dataNasc, perfil, supervisorId, ativo } = parsed.data;
+  const { nomeCompleto, rg, dataNasc, perfil, supervisorId, podeSerCoordenador, confirmado, ativo } = parsed.data;
 
   const usuario = await prisma.usuario.update({
     where: { id: BigInt(id) },
@@ -48,9 +48,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       dataNasc: dataNasc ? new Date(dataNasc) : null,
       perfil: perfil as "MEMBRO" | "SUPERVISOR" | "ADMINISTRADOR",
       supervisorId: supervisorId ? BigInt(supervisorId) : null,
+      ...(podeSerCoordenador !== undefined && { podeSerCoordenador }),
+      ...(confirmado !== undefined && { confirmado }),
       ...(ativo !== undefined && { ativo }),
     },
-    select: { id: true, nomeCompleto: true, email: true, perfil: true, ativo: true },
+    select: { id: true, nomeCompleto: true, email: true, perfil: true, podeSerCoordenador: true, confirmado: true, ativo: true },
   });
 
   await registrarAuditoria({

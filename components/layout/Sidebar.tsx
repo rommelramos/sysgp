@@ -28,6 +28,7 @@ const navItems: NavItem[] = [
   { href: "/atividades",         label: "Atividades",   icon: Activity },
   { href: "/relatorios",         label: "Relatórios",   icon: FileText },
   { href: "/relacoes",           label: "Relações",     icon: Link2 },
+  { href: "/admin/convites",     label: "Convites",     icon: Link2,        perfis: ["ADMINISTRADOR"] },
   { href: "/admin/configuracoes",label: "Configurações",icon: Settings,     perfis: ["ADMINISTRADOR"] },
 ];
 

@@ -18,6 +18,8 @@ interface Usuario {
   dataNasc: string | null;
   email: string;
   perfil: string;
+  podeSerCoordenador: boolean;
+  confirmado: boolean;
   ativo: boolean;
   createdAt: string;
   supervisorId: string | null;
@@ -42,9 +44,11 @@ export default function UsuariosPage() {
   const [form, setForm] = useState({
     nomeCompleto: "", cpf: "", rg: "", dataNasc: "", email: "",
     senha: "", confirmarSenha: "", perfil: "MEMBRO", supervisorId: "",
+    podeSerCoordenador: false,
   });
   const [editForm, setEditForm] = useState({
-    nomeCompleto: "", rg: "", dataNasc: "", perfil: "MEMBRO", supervisorId: "", ativo: true,
+    nomeCompleto: "", rg: "", dataNasc: "", perfil: "MEMBRO", supervisorId: "",
+    podeSerCoordenador: false, confirmado: true, ativo: true,
   });
   const [supervisores, setSupervisores] = useState<Array<{ id: string; nomeCompleto: string }>>([]);
   const [showSenha, setShowSenha] = useState(false);
@@ -87,7 +91,7 @@ export default function UsuariosPage() {
       if (!res.ok) { toast("error", data.error || "Erro ao criar usuário"); return; }
       toast("success", "Usuário criado com sucesso!");
       setModalOpen(false);
-      setForm({ nomeCompleto: "", cpf: "", rg: "", dataNasc: "", email: "", senha: "", confirmarSenha: "", perfil: "MEMBRO", supervisorId: "" });
+      setForm({ nomeCompleto: "", cpf: "", rg: "", dataNasc: "", email: "", senha: "", confirmarSenha: "", perfil: "MEMBRO", supervisorId: "", podeSerCoordenador: false });
       carregar();
     } catch {
       toast("error", "Erro de comunicação com o servidor");
@@ -104,9 +108,29 @@ export default function UsuariosPage() {
       dataNasc: u.dataNasc ? u.dataNasc.slice(0, 10) : "",
       perfil: u.perfil,
       supervisorId: u.supervisorId || "",
+      podeSerCoordenador: u.podeSerCoordenador,
+      confirmado: u.confirmado,
       ativo: u.ativo,
     });
     setEditModalOpen(true);
+  }
+
+  async function confirmarUsuario(u: Usuario) {
+    const res = await fetch(`/api/usuarios/${u.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nomeCompleto: u.nomeCompleto,
+        rg: u.rg,
+        dataNasc: u.dataNasc ? u.dataNasc.slice(0, 10) : undefined,
+        perfil: u.perfil,
+        supervisorId: u.supervisorId,
+        confirmado: true,
+        ativo: u.ativo,
+      }),
+    });
+    if (res.ok) { toast("success", "Usuário confirmado"); carregar(); }
+    else { const d = await res.json(); toast("error", d.error || "Erro ao confirmar"); }
   }
 
   async function handleEdit(e: React.FormEvent) {
@@ -177,7 +201,7 @@ export default function UsuariosPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--bg-elevated)]">
-                {["Nome", "E-mail", "CPF", "Perfil", "Supervisor", "Status", "Cadastro", "", ""].map((h) => (
+                {["Nome", "E-mail", "CPF", "Perfil", "Coordenador", "Supervisor", "Status", "Confirmado", "Cadastro", "", ""].map((h) => (
                   <th key={h} className="text-left px-5 py-4 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
@@ -202,8 +226,24 @@ export default function UsuariosPage() {
                     <td className="px-5 py-4 text-sm text-[var(--text-secondary)]">{u.email}</td>
                     <td className="px-5 py-4 text-xs font-mono text-[var(--text-secondary)] whitespace-nowrap">{u.cpf}</td>
                     <td className="px-5 py-4"><Badge value={u.perfil} /></td>
+                    <td className="px-5 py-4 text-center">
+                      {u.podeSerCoordenador
+                        ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">Sim</span>
+                        : <span className="text-[10px] text-[var(--text-muted)]">—</span>}
+                    </td>
                     <td className="px-5 py-4 text-sm text-[var(--text-secondary)]">{u.supervisor?.nomeCompleto || "—"}</td>
                     <td className="px-5 py-4"><Badge value={u.ativo ? "ATIVO" : "ENCERRADO"} /></td>
+                    <td className="px-5 py-4">
+                      {u.confirmado
+                        ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700">Confirmado</span>
+                        : <button
+                            onClick={() => confirmarUsuario(u)}
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                          >
+                            Confirmar
+                          </button>
+                      }
+                    </td>
                     <td className="px-5 py-4 text-xs font-mono text-[var(--text-secondary)] whitespace-nowrap">{formatarData(u.createdAt)}</td>
                     <td className="px-5 py-4">
                       <Button variant="ghost" size="sm" icon={<Pencil size={13} />} onClick={() => openEditModal(u)}>
@@ -249,15 +289,35 @@ export default function UsuariosPage() {
               placeholder="Nenhum"
             />
           </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={editForm.ativo}
-              onChange={(e) => setEditForm(f => ({ ...f, ativo: e.target.checked }))}
-              className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent-primary)]"
-            />
-            <span className="text-sm text-[var(--text-primary)]">Usuário ativo</span>
-          </label>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={editForm.podeSerCoordenador}
+                onChange={(e) => setEditForm(f => ({ ...f, podeSerCoordenador: e.target.checked }))}
+                className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent-primary)]"
+              />
+              <span className="text-sm text-[var(--text-primary)]">Pode ser coordenador de projeto</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={editForm.confirmado}
+                onChange={(e) => setEditForm(f => ({ ...f, confirmado: e.target.checked }))}
+                className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent-primary)]"
+              />
+              <span className="text-sm text-[var(--text-primary)]">Cadastro confirmado</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={editForm.ativo}
+                onChange={(e) => setEditForm(f => ({ ...f, ativo: e.target.checked }))}
+                className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent-primary)]"
+              />
+              <span className="text-sm text-[var(--text-primary)]">Usuário ativo</span>
+            </label>
+          </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" type="button" onClick={() => setEditModalOpen(false)}>Cancelar</Button>
             <Button type="submit" loading={submitting}>Salvar Alterações</Button>
@@ -295,6 +355,15 @@ export default function UsuariosPage() {
             <Input label="Confirmar Senha" type="password" value={form.confirmarSenha} onChange={(e) => setForm(f => ({ ...f, confirmarSenha: e.target.value }))} required />
             <Select label="Perfil" value={form.perfil} onChange={(e) => setForm(f => ({ ...f, perfil: e.target.value }))} options={perfilOpts} required />
           </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.podeSerCoordenador}
+              onChange={(e) => setForm(f => ({ ...f, podeSerCoordenador: e.target.checked }))}
+              className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent-primary)]"
+            />
+            <span className="text-sm text-[var(--text-primary)]">Pode ser coordenador de projeto</span>
+          </label>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" type="button" onClick={() => setModalOpen(false)}>Cancelar</Button>
             <Button type="submit" loading={submitting}>Criar Usuário</Button>

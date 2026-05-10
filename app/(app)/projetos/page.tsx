@@ -245,7 +245,7 @@ export default function ProjetosPage() {
 
   useEffect(() => {
     if (user?.perfil === "ADMINISTRADOR") {
-      fetch("/api/usuarios?perfil=SUPERVISOR&pageSize=100")
+      fetch("/api/usuarios?podeSerCoordenador=true&pageSize=200")
         .then((r) => r.json())
         .then((d) => setSupervisores(d.data || []))
         .catch(() => {});

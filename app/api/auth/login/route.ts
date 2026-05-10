@@ -43,12 +43,19 @@ export async function POST(req: NextRequest) {
 
   const usuario = await prisma.usuario.findUnique({
     where: { email },
-    select: { id: true, email: true, nomeCompleto: true, perfil: true, senhaHash: true, ativo: true },
+    select: { id: true, email: true, nomeCompleto: true, perfil: true, senhaHash: true, ativo: true, confirmado: true },
   });
 
   if (!usuario || !usuario.ativo) {
     await registrarAuditoria({ acao: "LOGIN_FALHA", ipAddress: ip, detalhes: { email } });
     return NextResponse.json({ error: "Credenciais inválidas" }, { status: 401 });
+  }
+
+  if (!usuario.confirmado) {
+    return NextResponse.json(
+      { error: "Seu cadastro ainda não foi confirmado pelo administrador. Aguarde a aprovação para fazer login." },
+      { status: 403 }
+    );
   }
 
   const senhaValida = await verificarSenha(senha, usuario.senhaHash);

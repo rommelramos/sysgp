@@ -31,18 +31,21 @@ enum OrigemDocumento {
 }
 
 model Usuario {
-  id           BigInt    @id @default(autoincrement())
-  nomeCompleto String    @map("nome_completo") @db.VarChar(255)
-  cpf          String    @unique @db.VarChar(14)
-  rg           String?   @db.VarChar(20)
-  dataNasc     DateTime? @map("data_nasc") @db.Date
-  email        String    @unique @db.VarChar(255)
-  senhaHash    String    @map("senha_hash") @db.VarChar(255)
-  perfil       Perfil    @default(MEMBRO)
-  supervisorId BigInt?   @map("supervisor_id")
-  ativo        Boolean   @default(true)
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id                  BigInt    @id @default(autoincrement())
+  nomeCompleto        String    @map("nome_completo") @db.VarChar(255)
+  cpf                 String    @unique @db.VarChar(14)
+  rg                  String?   @db.VarChar(20)
+  dataNasc            DateTime? @map("data_nasc") @db.Date
+  email               String    @unique @db.VarChar(255)
+  senhaHash           String    @map("senha_hash") @db.VarChar(255)
+  perfil              Perfil    @default(MEMBRO)
+  supervisorId        BigInt?   @map("supervisor_id")
+  podeSerCoordenador  Boolean   @default(false) @map("pode_ser_coordenador")
+  confirmado          Boolean   @default(true)
+  conviteId           BigInt?   @map("convite_id")
+  ativo               Boolean   @default(true)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   supervisor      Usuario?             @relation("SupervisaoUsuarios", fields: [supervisorId], references: [id])
   supervisionados Usuario[]            @relation("SupervisaoUsuarios")
@@ -52,8 +55,27 @@ model Usuario {
   refreshTokens   RefreshToken[]
   resetTokens     PasswordResetToken[]
   auditLogs       AuditLog[]
+  convite         ConviteCadastro?     @relation("UsuarioConvite", fields: [conviteId], references: [id])
+  convitesCriados ConviteCadastro[]    @relation("ConviteCriadoPor")
 
   @@map("usuarios")
+}
+
+model ConviteCadastro {
+  id          BigInt    @id @default(autoincrement())
+  token       String    @unique @db.VarChar(64)
+  descricao   String?   @db.VarChar(255)
+  criadoPorId BigInt    @map("criado_por_id")
+  usoMaximo   Int       @default(1) @map("uso_maximo")
+  usoAtual    Int       @default(0) @map("uso_atual")
+  expiraEm    DateTime? @map("expira_em")
+  ativo       Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  criadoPor Usuario   @relation("ConviteCriadoPor", fields: [criadoPorId], references: [id])
+  usuarios  Usuario[] @relation("UsuarioConvite")
+
+  @@map("convites_cadastro")
 }
 
 model Projeto {
