@@ -475,11 +475,11 @@ export default function ProjetosPage() {
           {/* Import from file */}
           <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
             <FileText size={16} className="text-blue-500 shrink-0" />
-            <p className="text-[12px] text-blue-700 flex-1">Importe um arquivo de texto para preencher os campos automaticamente com IA.</p>
+            <p className="text-[12px] text-blue-700 flex-1">Importe o documento do projeto (.pdf, .txt, .md) para preencher os campos automaticamente com IA.</p>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".txt,.md,.doc,.docx"
+              accept=".pdf,.txt,.md,.doc,.docx"
               className="hidden"
               onChange={handleExtrair}
             />

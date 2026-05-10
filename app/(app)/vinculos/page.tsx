@@ -471,12 +471,12 @@ export default function VinculosPage() {
           <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
             <FileText size={16} className="text-blue-500 shrink-0" />
             <p className="text-[12px] text-blue-700 flex-1">
-              Importe o plano de trabalho (.txt, .md) para preencher os campos automaticamente com IA.
+              Importe o plano de trabalho (.pdf, .txt, .md) para preencher os campos automaticamente com IA.
             </p>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".txt,.md,.doc,.docx"
+              accept=".pdf,.txt,.md,.doc,.docx"
               className="hidden"
               onChange={handleExtrair}
             />
