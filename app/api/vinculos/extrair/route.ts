@@ -24,6 +24,8 @@ Retorne apenas campos encontrados com confiança. Datas no formato YYYY-MM-DD. O
 const OUTPUT_SCHEMA = {
   type: "object",
   properties: {
+    nomeProjeto: { type: "string" },
+    nomeBolsista: { type: "string" },
     funcao: { type: "string" },
     cargaHoraria: { type: "number" },
     valorBolsa: { type: "number" },
@@ -58,6 +60,8 @@ const OUTPUT_SCHEMA = {
 } as const;
 
 const EXTRACTION_PROMPT = `Extraia as informações do plano de trabalho e retorne um objeto JSON com os campos:
+- nomeProjeto (string): nome/título do projeto ao qual este plano de trabalho está vinculado
+- nomeBolsista (string): nome completo do bolsista ou candidato descrito no plano de trabalho
 - funcao (string): tipo de bolsa como função (ex: "Bolsista BEI V") ou cargo no projeto
 - cargaHoraria (number): carga horária semanal em horas (apenas o número)
 - valorBolsa (number): valor mensal da bolsa em reais (apenas o número, sem R$)

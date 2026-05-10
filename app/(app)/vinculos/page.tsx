@@ -63,6 +63,34 @@ const blankForm = {
   statusVinculo: "ATIVO",
 };
 
+function normalizeStr(s: string) {
+  return s.toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function fuzzyMatchId<T extends { id: string }>(
+  name: string,
+  list: T[],
+  getLabel: (item: T) => string,
+): string | null {
+  if (!name || list.length === 0) return null;
+  const q = normalizeStr(name);
+  const qTokens = q.split(" ").filter((t) => t.length > 2);
+  let best: { id: string; score: number } | null = null;
+  for (const item of list) {
+    const label = normalizeStr(getLabel(item));
+    let score = 0;
+    if (label.includes(q) || q.includes(label)) {
+      score = 1000;
+    } else {
+      for (const t of qTokens) if (label.includes(t)) score++;
+    }
+    if (score > 0 && (!best || score > best.score)) best = { id: item.id, score };
+  }
+  return best ? best.id : null;
+}
+
 function parseCronograma(raw: string | null): CronogramaItem[] {
   if (!raw) return [];
   try {
@@ -178,14 +206,24 @@ export default function VinculosPage() {
       if (!res.ok || !data.ok) { toast("error", data.error || "Erro ao extrair dados"); return; }
 
       const d = data.dados as {
+        nomeProjeto?: string; nomeBolsista?: string;
         funcao?: string; cargaHoraria?: number; valorBolsa?: number;
         duracaoMeses?: number; dataInicioBolsa?: string; dataFimBolsa?: string;
         resultadosEsperados?: string; cronograma?: CronogramaItem[];
         metas?: { descricao: string }[];
       };
 
+      const projetoMatch = d.nomeProjeto
+        ? fuzzyMatchId(d.nomeProjeto, projetos, (p) => p.titulo)
+        : null;
+      const usuarioMatch = d.nomeBolsista
+        ? fuzzyMatchId(d.nomeBolsista, usuarios, (u) => u.nomeCompleto)
+        : null;
+
       setForm(f => ({
         ...f,
+        ...(projetoMatch          ? { projetoId: projetoMatch }                                : {}),
+        ...(usuarioMatch          ? { usuarioId: usuarioMatch }                                : {}),
         ...(d.funcao              ? { funcao: d.funcao }                                       : {}),
         ...(d.cargaHoraria        ? { cargaHoraria: String(Math.round(d.cargaHoraria)) }       : {}),
         ...(d.valorBolsa          ? { valorBolsa: String(d.valorBolsa) }                       : {}),
