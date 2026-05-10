@@ -190,34 +190,34 @@ const CREATE_STATEMENTS = [
   `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS cronograma TEXT NULL`,
   `ALTER TABLE atividades ADD COLUMN IF NOT EXISTS meta_id BIGINT NULL`,
 
-  // Foreign keys — IF NOT EXISTS é idempotente (MariaDB 10.5+).
-  `ALTER TABLE usuarios ADD CONSTRAINT IF NOT EXISTS fk_usuarios_supervisor
+  // Foreign keys — duplicatas ignoradas pelo catch (código 1826).
+  `ALTER TABLE usuarios ADD CONSTRAINT fk_usuarios_supervisor
     FOREIGN KEY (supervisor_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE usuarios ADD CONSTRAINT IF NOT EXISTS fk_usuarios_convite
+  `ALTER TABLE usuarios ADD CONSTRAINT fk_usuarios_convite
     FOREIGN KEY (convite_id) REFERENCES convites_cadastro(id)`,
-  `ALTER TABLE convites_cadastro ADD CONSTRAINT IF NOT EXISTS fk_convites_criado_por
+  `ALTER TABLE convites_cadastro ADD CONSTRAINT fk_convites_criado_por
     FOREIGN KEY (criado_por_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE projetos ADD CONSTRAINT IF NOT EXISTS fk_projetos_coordenador
+  `ALTER TABLE projetos ADD CONSTRAINT fk_projetos_coordenador
     FOREIGN KEY (coordenador_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE projeto_membros ADD CONSTRAINT IF NOT EXISTS fk_pm_projeto
+  `ALTER TABLE projeto_membros ADD CONSTRAINT fk_pm_projeto
     FOREIGN KEY (projeto_id) REFERENCES projetos(id)`,
-  `ALTER TABLE projeto_membros ADD CONSTRAINT IF NOT EXISTS fk_pm_usuario
+  `ALTER TABLE projeto_membros ADD CONSTRAINT fk_pm_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE metas ADD CONSTRAINT IF NOT EXISTS fk_metas_projeto_membro
+  `ALTER TABLE metas ADD CONSTRAINT fk_metas_projeto_membro
     FOREIGN KEY (projeto_membro_id) REFERENCES projeto_membros(id) ON DELETE CASCADE`,
-  `ALTER TABLE atividades ADD CONSTRAINT IF NOT EXISTS fk_atividades_projeto
+  `ALTER TABLE atividades ADD CONSTRAINT fk_atividades_projeto
     FOREIGN KEY (projeto_id) REFERENCES projetos(id)`,
-  `ALTER TABLE atividades ADD CONSTRAINT IF NOT EXISTS fk_atividades_usuario
+  `ALTER TABLE atividades ADD CONSTRAINT fk_atividades_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE atividades ADD CONSTRAINT IF NOT EXISTS fk_atividades_meta
+  `ALTER TABLE atividades ADD CONSTRAINT fk_atividades_meta
     FOREIGN KEY (meta_id) REFERENCES metas(id)`,
-  `ALTER TABLE atividade_documentos ADD CONSTRAINT IF NOT EXISTS fk_ad_atividade
+  `ALTER TABLE atividade_documentos ADD CONSTRAINT fk_ad_atividade
     FOREIGN KEY (atividade_id) REFERENCES atividades(id) ON DELETE CASCADE`,
-  `ALTER TABLE password_reset_tokens ADD CONSTRAINT IF NOT EXISTS fk_prt_usuario
+  `ALTER TABLE password_reset_tokens ADD CONSTRAINT fk_prt_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE refresh_tokens ADD CONSTRAINT IF NOT EXISTS fk_rt_usuario
+  `ALTER TABLE refresh_tokens ADD CONSTRAINT fk_rt_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
-  `ALTER TABLE audit_log ADD CONSTRAINT IF NOT EXISTS fk_al_usuario
+  `ALTER TABLE audit_log ADD CONSTRAINT fk_al_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
 ];
 
