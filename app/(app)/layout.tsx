@@ -13,7 +13,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex flex-col flex-1 min-w-0">
         <Topbar onMobileMenuToggle={() => setMobileOpen((o) => !o)} />
         <main className="flex-1 overflow-y-auto">
-          <div className="p-6 md:p-8 mx-auto w-full" style={{ maxWidth: 1600 }}>
+          <div className="p-6 md:p-8 mx-auto w-full" style={{ maxWidth: 1600, marginLeft: 5 }}>
             {children}
           </div>
         </main>
