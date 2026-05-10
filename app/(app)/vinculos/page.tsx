@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, Users, BookOpen, CalendarRange, FileText, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, BookOpen, CalendarRange, FileText, Loader2, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -312,6 +312,15 @@ export default function VinculosPage() {
     setCronogramaItems((c) => c.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
   }
 
+  const gruposProjeto = useMemo(() => {
+    const map = new Map<string, { projeto: Vinculo["projeto"]; vinculos: Vinculo[] }>();
+    vinculos.forEach((v) => {
+      if (!map.has(v.projeto.id)) map.set(v.projeto.id, { projeto: v.projeto, vinculos: [] });
+      map.get(v.projeto.id)!.vinculos.push(v);
+    });
+    return Array.from(map.values());
+  }, [vinculos]);
+
   const pageSize = 50;
   const totalPages = Math.ceil(total / pageSize);
 
@@ -342,149 +351,166 @@ export default function VinculosPage() {
           <p className="text-xs text-[var(--text-muted)]">Crie um vínculo para associar membros a projetos</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {vinculos.map((v, i) => {
-            const cronItems = parseCronograma(v.cronograma);
-            const canEdit = isAdmin || projetosIds.has(v.projeto.id);
-            return (
-              <motion.div
-                key={v.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03 }}
-                className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-card)] overflow-hidden"
-              >
-                {/* Header row */}
-                <div className="flex items-center gap-4 p-4">
-                  <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                    <Users size={16} className="text-blue-600" />
-                  </div>
-                  <div className="flex-1 min-w-0" style={{ marginLeft: '5px' }}>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-[var(--text-primary)]">{v.usuario.nomeCompleto}</span>
-                      {v.isCoordenador && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 uppercase tracking-wide">Coord.</span>
-                      )}
-                      {v.isBolsista && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700 uppercase tracking-wide">Bolsista</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-[var(--text-muted)] truncate">
-                      {v.projeto.titulo}
-                      {v.funcao && ` · ${v.funcao}`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge value={v.statusVinculo} />
-                    <button
-                      onClick={() => setExpandedId(expandedId === v.id ? null : v.id)}
-                      className="flex items-center gap-1 px-2 py-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-lg hover:bg-[var(--bg-elevated)] transition-colors"
-                    >
-                      <BookOpen size={13} />
-                      {v.metas.length > 0 && <span>{v.metas.length} metas</span>}
-                    </button>
-                    {canEdit && (
-                      <Button variant="ghost" size="sm" icon={<Pencil size={13} />} onClick={() => openEdit(v)}>
-                        Editar
-                      </Button>
-                    )}
-                    {isAdmin && (
-                      <Button variant="ghost" size="sm" icon={<Trash2 size={13} />} onClick={() => setDeleteTarget(v)}
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                      >
-                        Excluir
-                      </Button>
-                    )}
-                  </div>
+        <div className="space-y-6">
+          {gruposProjeto.map((grupo) => (
+            <div key={grupo.projeto.id}>
+              {/* Project group header */}
+              <div className="flex items-center gap-3 mb-3" style={{ marginLeft: '5px' }}>
+                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                  <FolderOpen size={15} className="text-blue-500" />
                 </div>
+                <div style={{ marginLeft: '5px' }}>
+                  <h2 className="text-sm font-bold text-[var(--text-primary)]">{grupo.projeto.titulo}</h2>
+                  <p className="text-xs text-[var(--text-muted)]">{grupo.vinculos.length} vínculo(s)</p>
+                </div>
+                <Badge value={grupo.projeto.status} />
+              </div>
 
-                {/* Expanded details */}
-                {expandedId === v.id && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="border-t border-[var(--border)] px-4 py-4 bg-[var(--bg-elevated)] space-y-4"
-                  >
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                      {v.cargaHoraria && (
-                        <div style={{ marginLeft: '5px' }}>
-                          <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold">Carga Horária</p>
-                          <p className="text-sm font-medium text-[var(--text-primary)]">{v.cargaHoraria}h/sem</p>
+              <div className="space-y-2 pl-3 border-l-2 border-[var(--border)] ml-4">
+                {grupo.vinculos.map((v, i) => {
+                  const cronItems = parseCronograma(v.cronograma);
+                  const canEdit = isAdmin || projetosIds.has(v.projeto.id);
+                  return (
+                    <motion.div
+                      key={v.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.03 }}
+                      className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-card)] overflow-hidden"
+                    >
+                      {/* Header row */}
+                      <div className="flex items-center gap-4 p-4">
+                        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                          <Users size={16} className="text-blue-600" />
                         </div>
-                      )}
-                      {v.valorBolsa && (
-                        <div style={{ marginLeft: '5px' }}>
-                          <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold">Valor Bolsa</p>
-                          <p className="text-sm font-medium text-[var(--text-primary)]">R$ {Number(v.valorBolsa).toFixed(2)}</p>
+                        <div className="flex-1 min-w-0" style={{ marginLeft: '5px' }}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold text-[var(--text-primary)]">{v.usuario.nomeCompleto}</span>
+                            {v.isCoordenador && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 uppercase tracking-wide">Coord.</span>
+                            )}
+                            {v.isBolsista && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700 uppercase tracking-wide">Bolsista</span>
+                            )}
+                          </div>
+                          {v.funcao && (
+                            <p className="text-xs text-[var(--text-muted)] truncate">{v.funcao}</p>
+                          )}
                         </div>
-                      )}
-                      {v.duracaoMeses && (
-                        <div style={{ marginLeft: '5px' }}>
-                          <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold">Duração</p>
-                          <p className="text-sm font-medium text-[var(--text-primary)]">{v.duracaoMeses} meses</p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge value={v.statusVinculo} />
+                          <button
+                            onClick={() => setExpandedId(expandedId === v.id ? null : v.id)}
+                            className="flex items-center gap-1 px-2 py-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-lg hover:bg-[var(--bg-elevated)] transition-colors"
+                          >
+                            <BookOpen size={13} />
+                            {v.metas.length > 0 && <span>{v.metas.length} metas</span>}
+                          </button>
+                          {canEdit && (
+                            <Button variant="ghost" size="sm" icon={<Pencil size={13} />} onClick={() => openEdit(v)}>
+                              Editar
+                            </Button>
+                          )}
+                          {isAdmin && (
+                            <Button variant="ghost" size="sm" icon={<Trash2 size={13} />} onClick={() => setDeleteTarget(v)}
+                              className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                            >
+                              Excluir
+                            </Button>
+                          )}
                         </div>
-                      )}
-                      {(v.dataInicioBolsa || v.dataFimBolsa) && (
-                        <div style={{ marginLeft: '5px' }}>
-                          <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold">Período Bolsa</p>
-                          <p className="text-sm font-medium text-[var(--text-primary)]">
-                            {formatarData(v.dataInicioBolsa)} — {formatarData(v.dataFimBolsa)}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {v.resultadosEsperados && (
-                      <div style={{ marginLeft: '5px' }}>
-                        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold mb-1">Resultados Esperados</p>
-                        <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">{v.resultadosEsperados}</p>
                       </div>
-                    )}
 
-                    {cronItems.length > 0 && (
-                      <div style={{ marginLeft: '5px' }}>
-                        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold mb-2">Cronograma de Atividades</p>
-                        <div className="space-y-1.5">
-                          {cronItems.map((item, idx) => (
-                            <div key={idx} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-[var(--border)]">
-                              <CalendarRange size={13} className="text-[var(--accent-primary)] shrink-0" />
-                              <span className="text-sm font-medium text-[var(--text-primary)] flex-1">{item.nome}</span>
-                              {(item.dataInicio || item.dataFim) && (
-                                <span className="text-xs text-[var(--text-muted)] font-mono shrink-0">
-                                  {formatarData(item.dataInicio || null)}
-                                  {item.dataInicio && item.dataFim && " → "}
-                                  {formatarData(item.dataFim || null)}
-                                </span>
-                              )}
+                      {/* Expanded details */}
+                      {expandedId === v.id && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="border-t border-[var(--border)] px-4 py-4 bg-[var(--bg-elevated)] space-y-4"
+                        >
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            {v.cargaHoraria && (
+                              <div style={{ marginLeft: '5px' }}>
+                                <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold">Carga Horária</p>
+                                <p className="text-sm font-medium text-[var(--text-primary)]">{v.cargaHoraria}h/sem</p>
+                              </div>
+                            )}
+                            {v.valorBolsa && (
+                              <div style={{ marginLeft: '5px' }}>
+                                <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold">Valor Bolsa</p>
+                                <p className="text-sm font-medium text-[var(--text-primary)]">R$ {Number(v.valorBolsa).toFixed(2)}</p>
+                              </div>
+                            )}
+                            {v.duracaoMeses && (
+                              <div style={{ marginLeft: '5px' }}>
+                                <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold">Duração</p>
+                                <p className="text-sm font-medium text-[var(--text-primary)]">{v.duracaoMeses} meses</p>
+                              </div>
+                            )}
+                            {(v.dataInicioBolsa || v.dataFimBolsa) && (
+                              <div style={{ marginLeft: '5px' }}>
+                                <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold">Período Bolsa</p>
+                                <p className="text-sm font-medium text-[var(--text-primary)]">
+                                  {formatarData(v.dataInicioBolsa)} — {formatarData(v.dataFimBolsa)}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {v.resultadosEsperados && (
+                            <div style={{ marginLeft: '5px' }}>
+                              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold mb-1">Resultados Esperados</p>
+                              <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">{v.resultadosEsperados}</p>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                          )}
 
-                    {v.metas.length > 0 && (
-                      <div style={{ marginLeft: '5px' }}>
-                        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold mb-2">Metas do Plano de Trabalho</p>
-                        <ol className="space-y-1.5">
-                          {v.metas.map((m) => (
-                            <li key={m.id} className="flex items-start gap-2 text-sm text-[var(--text-primary)]">
-                              <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--accent-primary)] text-white text-[10px] font-bold flex items-center justify-center mt-0.5">{m.ordem}</span>
-                              <span>{m.descricao}</span>
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    )}
+                          {cronItems.length > 0 && (
+                            <div style={{ marginLeft: '5px' }}>
+                              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold mb-2">Cronograma de Atividades</p>
+                              <div className="space-y-1.5">
+                                {cronItems.map((item, idx) => (
+                                  <div key={idx} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-[var(--border)]">
+                                    <CalendarRange size={13} className="text-[var(--accent-primary)] shrink-0" />
+                                    <span className="text-sm font-medium text-[var(--text-primary)] flex-1">{item.nome}</span>
+                                    {(item.dataInicio || item.dataFim) && (
+                                      <span className="text-xs text-[var(--text-muted)] font-mono shrink-0">
+                                        {formatarData(item.dataInicio || null)}
+                                        {item.dataInicio && item.dataFim && " → "}
+                                        {formatarData(item.dataFim || null)}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
-                    <p className="text-[11px] text-[var(--text-muted)] mt-1" style={{ marginLeft: '5px' }}>
-                      Vinculado em {formatarData(v.createdAt)}
-                    </p>
-                  </motion.div>
-                )}
-              </motion.div>
-            );
-          })}
+                          {v.metas.length > 0 && (
+                            <div style={{ marginLeft: '5px' }}>
+                              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold mb-2">Metas do Plano de Trabalho</p>
+                              <ol className="space-y-1.5">
+                                {v.metas.map((m) => (
+                                  <li key={m.id} className="flex items-start gap-2 text-sm text-[var(--text-primary)]">
+                                    <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--accent-primary)] text-white text-[10px] font-bold flex items-center justify-center mt-0.5">{m.ordem}</span>
+                                    <span>{m.descricao}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
+                          )}
+
+                          <p className="text-[11px] text-[var(--text-muted)] mt-1" style={{ marginLeft: '5px' }}>
+                            Vinculado em {formatarData(v.createdAt)}
+                          </p>
+                        </motion.div>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
