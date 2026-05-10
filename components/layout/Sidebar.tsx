@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Users, FolderKanban, FileText,
   Share2, Settings, Activity, LogOut, BookOpen,
-  ChevronLeft, ChevronRight,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -55,24 +55,19 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
 
   const sidebarContent = (
     <>
-      {/* Logo — collapse toggle lives here, fully inside the sidebar bounds */}
-      <div className="flex items-center h-16 border-b border-[var(--border)] px-3 gap-2 overflow-hidden shrink-0">
-        {/* App icon */}
-        <div className="w-8 h-8 shrink-0 flex items-center justify-center">
-          <div className="w-8 h-8 rounded-lg bg-[var(--accent-primary)] flex items-center justify-center shadow-[0_2px_8px_rgba(37,99,235,0.3)]">
-            <FolderKanban size={16} className="text-white" aria-hidden="true" />
-          </div>
+      {/* Logo — no collapse button here */}
+      <div className="flex items-center h-16 border-b border-[var(--border)] px-4 gap-3 shrink-0">
+        <div className="w-8 h-8 shrink-0 rounded-lg bg-[var(--accent-primary)] flex items-center justify-center shadow-[0_2px_8px_rgba(37,99,235,0.3)]">
+          <FolderKanban size={16} className="text-white" aria-hidden="true" />
         </div>
-
-        {/* App name */}
         <AnimatePresence initial={false}>
           {!collapsed && (
             <motion.div
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: "auto" }}
-              exit={{ opacity: 0, width: 0 }}
-              transition={{ duration: 0.16 }}
-              className="flex items-baseline gap-0.5 overflow-hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.14 }}
+              className="flex items-baseline gap-0.5"
             >
               <span className="font-[family-name:var(--font-display)] text-[17px] font-bold text-[var(--text-primary)] tracking-tight whitespace-nowrap">
                 Sys
@@ -83,18 +78,6 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Collapse toggle — desktop only, inside header row */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
-          className="hidden md:flex ml-auto w-7 h-7 shrink-0 items-center justify-center rounded-md hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-all duration-150"
-        >
-          {collapsed
-            ? <ChevronRight size={14} aria-hidden="true" />
-            : <ChevronLeft size={14} aria-hidden="true" />
-          }
-        </button>
       </div>
 
       {/* Nav */}
@@ -143,8 +126,38 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
         })}
       </nav>
 
-      {/* User + Logout */}
-      <div className="border-t border-[var(--border)] p-3 space-y-1 shrink-0">
+      {/* Bottom section: collapse + user + logout */}
+      <div className="border-t border-[var(--border)] px-3 py-3 space-y-1 shrink-0">
+
+        {/* Collapse toggle — desktop only, safely in the bottom bar */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+          className={cn(
+            "hidden md:flex items-center gap-3 w-full h-9 rounded-[10px] transition-all duration-150",
+            "text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--accent-primary)]",
+            collapsed ? "justify-center px-0" : "px-3"
+          )}
+        >
+          {collapsed
+            ? <PanelLeftOpen size={15} aria-hidden="true" />
+            : <PanelLeftClose size={15} aria-hidden="true" />
+          }
+          <AnimatePresence initial={false}>
+            {!collapsed && (
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-[12px] font-medium"
+              >
+                Recolher menu
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
+
+        {/* User info */}
         <div className={cn(
           "flex items-center gap-3 px-2 py-2 rounded-[10px]",
           collapsed && "justify-center px-0"
@@ -169,6 +182,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           </AnimatePresence>
         </div>
 
+        {/* Logout */}
         <button
           onClick={logout}
           aria-label="Sair do sistema"
@@ -203,7 +217,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
         animate={{ width: collapsed ? 60 : 220 }}
         transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
         aria-label="Menu lateral"
-        className="hidden md:flex flex-col h-screen bg-[var(--bg-surface)] border-r border-[var(--border)] relative flex-shrink-0 select-none shadow-[1px_0_4px_rgba(0,0,0,0.06)]"
+        className="hidden md:flex flex-col h-screen bg-[var(--bg-surface)] border-r border-[var(--border)] flex-shrink-0 select-none shadow-[1px_0_4px_rgba(0,0,0,0.06)]"
       >
         {sidebarContent}
       </motion.aside>
