@@ -198,10 +198,24 @@ export default function VinculosPage() {
     if (!file) return;
     e.target.value = "";
     setExtraindo(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 55000);
     try {
       const fd = new FormData();
       fd.append("arquivo", file);
-      const res = await fetch("/api/vinculos/extrair", { method: "POST", body: fd });
+      let res: Response;
+      try {
+        res = await fetch("/api/vinculos/extrair", { method: "POST", body: fd, signal: controller.signal });
+      } catch (fetchErr) {
+        if (fetchErr instanceof Error && fetchErr.name === "AbortError") {
+          toast("error", "Tempo esgotado ao processar o arquivo. Tente com um arquivo menor.");
+        } else {
+          toast("error", "Sem resposta do servidor. Verifique sua conexão.");
+        }
+        return;
+      } finally {
+        clearTimeout(timeout);
+      }
       const data = await res.json();
       if (!res.ok || !data.ok) { toast("error", data.error || "Erro ao extrair dados"); return; }
 

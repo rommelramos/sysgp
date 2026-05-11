@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import Anthropic from "@anthropic-ai/sdk";
 
+export const maxDuration = 60;
+
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB — PDFs can be larger
 const ALLOWED_EXTS = /\.(pdf|txt|md|doc|docx)$/i;
 
@@ -120,7 +122,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await client.messages.create({
-      model: "claude-opus-4-7",
+      model: "claude-haiku-4-5",
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
