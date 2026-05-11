@@ -105,12 +105,26 @@ export async function POST(req: NextRequest) {
     const content = response.content[0];
     if (content.type !== "text") return NextResponse.json({ error: "Resposta inesperada da IA" }, { status: 500 });
 
-    // Strip markdown code fences if present
-    const raw = content.text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    let dados: unknown;
-    try {
-      dados = JSON.parse(raw);
-    } catch {
+    const raw = content.text;
+    let dados: unknown = null;
+
+    // 1. direct parse
+    try { dados = JSON.parse(raw); } catch { /* continue */ }
+
+    // 2. strip markdown fences then parse
+    if (!dados) {
+      const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+      try { dados = JSON.parse(stripped); } catch { /* continue */ }
+    }
+
+    // 3. extract first {...} block (handles preamble/postamble text)
+    if (!dados) {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) try { dados = JSON.parse(match[0]); } catch { /* continue */ }
+    }
+
+    if (!dados) {
+      console.error("[extrair] parse failed, raw response:", raw.slice(0, 500));
       return NextResponse.json({ ok: false, error: "Modelo retornou resposta inválida. Tente novamente." }, { status: 500 });
     }
 
