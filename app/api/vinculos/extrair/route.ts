@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import Anthropic from "@anthropic-ai/sdk";
-import pdfParse from "pdf-parse";
+// pdf-parse v2 ESM build lacks a default export; require() loads the CJS build that does
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
 
 export const maxDuration = 60;
 
