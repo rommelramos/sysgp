@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import Anthropic from "@anthropic-ai/sdk";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
-const MAX_SIZE = 10 * 1024 * 1024; // 10MB — PDFs can be larger
+const MAX_SIZE = 3 * 1024 * 1024; // 3MB — base64 encoding triplica o tamanho enviado à API
 const ALLOWED_EXTS = /\.(pdf|txt|md|doc|docx)$/i;
 
 const SYSTEM_PROMPT = `Você é especialista em análise de planos de trabalho de bolsas de pesquisa e inovação (BEI, CNPq, FAPESPA, CAPES, etc.).
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const f = formData.get("arquivo") as File | null;
     if (!f) return NextResponse.json({ error: "Arquivo obrigatório" }, { status: 400 });
-    if (f.size > MAX_SIZE) return NextResponse.json({ error: "Arquivo excede 10MB" }, { status: 400 });
+    if (f.size > MAX_SIZE) return NextResponse.json({ error: "Arquivo excede 3MB. Compacte o PDF ou salve como .txt" }, { status: 400 });
     if (!ALLOWED_EXTS.test(f.name))
       return NextResponse.json({ error: "Use .pdf, .txt, .md, .doc ou .docx" }, { status: 400 });
     file = f;
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
-      max_tokens: 2048,
+      max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
       output_config: {
