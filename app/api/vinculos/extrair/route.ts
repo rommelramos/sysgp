@@ -7,7 +7,7 @@ const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string
 
 export const maxDuration = 60;
 
-const MAX_SIZE = 10 * 1024 * 1024; // 10MB — texto extraído localmente, sem envio de base64
+const MAX_SIZE = 10 * 1024 * 1024;
 const MAX_TEXT_CHARS = 30000;
 const ALLOWED_EXTS = /\.(pdf|txt|md|doc|docx)$/i;
 
@@ -25,58 +25,32 @@ Para o valor da bolsa:
 Para a função/cargo:
 - Use o "Tipo de bolsa" como função (ex: "Bolsista BEI V"). Se houver campo de "função no projeto" ou "atividade principal", use esse.
 
-Retorne apenas campos encontrados com confiança. Datas no formato YYYY-MM-DD. Omita campos ausentes.`;
+Retorne APENAS um objeto JSON válido, sem texto antes ou depois. Omita campos não encontrados.
+Datas no formato YYYY-MM-DD.`;
 
-const OUTPUT_SCHEMA = {
-  type: "object",
-  properties: {
-    nomeProjeto: { type: "string" },
-    nomeBolsista: { type: "string" },
-    funcao: { type: "string" },
-    cargaHoraria: { type: "number" },
-    valorBolsa: { type: "number" },
-    duracaoMeses: { type: "number" },
-    dataInicioBolsa: { type: "string" },
-    dataFimBolsa: { type: "string" },
-    resultadosEsperados: { type: "string" },
-    cronograma: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          nome: { type: "string" },
-          dataInicio: { type: "string" },
-          dataFim: { type: "string" },
-        },
-        required: ["nome"],
-        additionalProperties: false,
-      },
-    },
-    metas: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: { descricao: { type: "string" } },
-        required: ["descricao"],
-        additionalProperties: false,
-      },
-    },
-  },
-  additionalProperties: false,
-} as const;
+const EXTRACTION_PROMPT = `Extraia as informações do plano de trabalho e retorne SOMENTE um objeto JSON com os campos encontrados:
 
-const EXTRACTION_PROMPT = `Extraia as informações do plano de trabalho e retorne um objeto JSON com os campos:
-- nomeProjeto (string): nome/título do projeto ao qual este plano de trabalho está vinculado
-- nomeBolsista (string): nome completo do bolsista ou candidato descrito no plano de trabalho
-- funcao (string): tipo de bolsa como função (ex: "Bolsista BEI V") ou cargo no projeto
-- cargaHoraria (number): carga horária semanal em horas (apenas o número)
-- valorBolsa (number): valor mensal da bolsa em reais (apenas o número, sem R$)
-- duracaoMeses (number): duração da bolsa em meses
-- dataInicioBolsa (string YYYY-MM-DD): data de início da bolsa
-- dataFimBolsa (string YYYY-MM-DD): data de fim da bolsa (início + duração em meses)
-- resultadosEsperados (string): lista dos resultados esperados como texto
-- cronograma (array): cada atividade da tabela de cronograma com { nome, dataInicio (YYYY-MM-DD), dataFim (YYYY-MM-DD) } calculados a partir do mês de início
-- metas (array): cada meta do plano de trabalho com { descricao } (apenas o título/nome da meta, sem a explicação)`;
+{
+  "nomeProjeto": "nome/título do projeto",
+  "nomeBolsista": "nome completo do bolsista",
+  "funcao": "tipo de bolsa como função (ex: Bolsista BEI V)",
+  "cargaHoraria": 20,
+  "valorBolsa": 900.00,
+  "duracaoMeses": 12,
+  "dataInicioBolsa": "YYYY-MM-DD",
+  "dataFimBolsa": "YYYY-MM-DD",
+  "resultadosEsperados": "texto com resultados esperados",
+  "cronograma": [
+    { "nome": "nome da atividade", "dataInicio": "YYYY-MM-DD", "dataFim": "YYYY-MM-DD" }
+  ],
+  "metas": [
+    { "descricao": "descrição da meta" }
+  ]
+}
+
+Retorne apenas os campos que você encontrou com certeza. Nenhum texto adicional.
+
+Documento:`;
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -121,25 +95,25 @@ export async function POST(req: NextRequest) {
 
     if (docText.length > MAX_TEXT_CHARS) docText = docText.slice(0, MAX_TEXT_CHARS);
 
-    const userContent = `${EXTRACTION_PROMPT}\n\nDocumento:\n\n${docText}`;
-
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user" as const, content: userContent }],
-      output_config: {
-        format: {
-          type: "json_schema" as const,
-          schema: OUTPUT_SCHEMA,
-        },
-      },
+      messages: [{ role: "user" as const, content: `${EXTRACTION_PROMPT}\n\n${docText}` }],
     });
 
     const content = response.content[0];
     if (content.type !== "text") return NextResponse.json({ error: "Resposta inesperada da IA" }, { status: 500 });
 
-    const dados = JSON.parse(content.text);
+    // Strip markdown code fences if present
+    const raw = content.text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    let dados: unknown;
+    try {
+      dados = JSON.parse(raw);
+    } catch {
+      return NextResponse.json({ ok: false, error: "Modelo retornou resposta inválida. Tente novamente." }, { status: 500 });
+    }
+
     return NextResponse.json({ ok: true, dados });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
