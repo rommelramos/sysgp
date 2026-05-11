@@ -199,7 +199,7 @@ export default function VinculosPage() {
     e.target.value = "";
     setExtraindo(true);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 110000);
+    const timeout = setTimeout(() => controller.abort(), 55000);
     try {
       const fd = new FormData();
       fd.append("arquivo", file);

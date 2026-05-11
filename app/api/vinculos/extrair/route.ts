@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import Anthropic from "@anthropic-ai/sdk";
+import pdfParse from "pdf-parse";
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
-const MAX_SIZE = 3 * 1024 * 1024; // 3MB — base64 encoding triplica o tamanho enviado à API
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB — texto extraído localmente, sem envio de base64
+const MAX_TEXT_CHARS = 30000;
 const ALLOWED_EXTS = /\.(pdf|txt|md|doc|docx)$/i;
 
 const SYSTEM_PROMPT = `Você é especialista em análise de planos de trabalho de bolsas de pesquisa e inovação (BEI, CNPq, FAPESPA, CAPES, etc.).
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const f = formData.get("arquivo") as File | null;
     if (!f) return NextResponse.json({ error: "Arquivo obrigatório" }, { status: 400 });
-    if (f.size > MAX_SIZE) return NextResponse.json({ error: "Arquivo excede 3MB. Compacte o PDF ou salve como .txt" }, { status: 400 });
+    if (f.size > MAX_SIZE) return NextResponse.json({ error: "Arquivo excede 10MB" }, { status: 400 });
     if (!ALLOWED_EXTS.test(f.name))
       return NextResponse.json({ error: "Use .pdf, .txt, .md, .doc ou .docx" }, { status: 400 });
     file = f;
@@ -98,34 +100,32 @@ export async function POST(req: NextRequest) {
     const client = new Anthropic({ apiKey });
     const isPDF = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
 
-    let userContent: Anthropic.MessageParam["content"];
+    let docText: string;
 
     if (isPDF) {
-      const buffer = await file.arrayBuffer();
-      const base64 = Buffer.from(buffer).toString("base64");
-      userContent = [
-        {
-          type: "document",
-          source: {
-            type: "base64",
-            media_type: "application/pdf",
-            data: base64,
-          },
-        } as Anthropic.DocumentBlockParam,
-        { type: "text", text: EXTRACTION_PROMPT },
-      ];
+      const buffer = Buffer.from(await file.arrayBuffer());
+      let parsed: { text: string };
+      try {
+        parsed = await pdfParse(buffer);
+      } catch {
+        return NextResponse.json({ error: "Não foi possível ler o PDF. Tente salvar como .txt" }, { status: 400 });
+      }
+      docText = parsed.text.trim();
+      if (!docText) return NextResponse.json({ error: "PDF sem texto extraível. Tente salvar como .txt" }, { status: 400 });
     } else {
-      let text = await file.text();
-      if (!text.trim()) return NextResponse.json({ error: "Arquivo vazio" }, { status: 400 });
-      if (text.length > 40000) text = text.slice(0, 40000);
-      userContent = `${EXTRACTION_PROMPT}\n\nDocumento:\n\n${text}`;
+      docText = (await file.text()).trim();
+      if (!docText) return NextResponse.json({ error: "Arquivo vazio" }, { status: 400 });
     }
+
+    if (docText.length > MAX_TEXT_CHARS) docText = docText.slice(0, MAX_TEXT_CHARS);
+
+    const userContent = `${EXTRACTION_PROMPT}\n\nDocumento:\n\n${docText}`;
 
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
+      messages: [{ role: "user" as const, content: userContent }],
       output_config: {
         format: {
           type: "json_schema" as const,
