@@ -18,7 +18,10 @@ export const membroProjetoSchema = z.object({
   funcao: z.string().optional(),
   isCoordenador: z.boolean().default(false),
   isBolsista: z.boolean().default(false),
-  valorBolsa: z.string().optional().nullable(),
+  valorBolsa: z.preprocess(
+    (v) => (v === null || v === undefined || v === "") ? null : Number(v),
+    z.number().positive().optional().nullable()
+  ),
   duracaoMeses: z.number().int().positive().optional().nullable(),
   dataInicioBolsa: z.string().optional().nullable(),
   dataFimBolsa: z.string().optional().nullable(),

@@ -71,7 +71,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(d.funcao !== undefined && { funcao: d.funcao || null }),
       ...(d.isCoordenador !== undefined && { isCoordenador: d.isCoordenador }),
       ...(d.isBolsista !== undefined && { isBolsista: d.isBolsista }),
-      ...(d.valorBolsa !== undefined && { valorBolsa: d.valorBolsa ? parseFloat(d.valorBolsa) : null }),
+      ...(d.valorBolsa !== undefined && { valorBolsa: d.valorBolsa ?? null }),
       ...(d.duracaoMeses !== undefined && { duracaoMeses: d.duracaoMeses }),
       ...(d.dataInicioBolsa !== undefined && { dataInicioBolsa: d.dataInicioBolsa ? new Date(d.dataInicioBolsa) : null }),
       ...(d.dataFimBolsa !== undefined && { dataFimBolsa: d.dataFimBolsa ? new Date(d.dataFimBolsa) : null }),
