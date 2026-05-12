@@ -52,18 +52,17 @@ export async function GET(req: NextRequest) {
   ]);
 
   // Fetch completed activities count per project in a single query
-  const projetoIds = projetos.map((p: { id: bigint }) => p.id);
-  type ConcluidasGroup = { projetoId: bigint; _count: { id: number } };
-  const concluidasGroups: ConcluidasGroup[] = projetoIds.length > 0
+  const projetoIds = projetos.map((p) => p.id);
+  const concluidasGroups = projetoIds.length > 0
     ? await prisma.atividade.groupBy({
         by: ["projetoId"],
         where: { projetoId: { in: projetoIds }, concluida: true },
         _count: { id: true },
       })
-    : [];
-  const concluidasMap = new Map(concluidasGroups.map((g: ConcluidasGroup) => [String(g.projetoId), g._count.id]));
+    : ([] as Array<{ projetoId: bigint; _count: { id: number } }>);
+  const concluidasMap = new Map(concluidasGroups.map((g) => [String(g.projetoId), g._count.id]));
 
-  const data = projetos.map((p: { id: bigint }) => ({
+  const data = projetos.map((p) => ({
     ...p,
     _countConcluidas: concluidasMap.get(String(p.id)) ?? 0,
   }));
