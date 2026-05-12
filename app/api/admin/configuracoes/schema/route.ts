@@ -189,6 +189,7 @@ const CREATE_STATEMENTS = [
   `ALTER TABLE projeto_membros ADD COLUMN resultados_esperados TEXT NULL`,
   `ALTER TABLE projeto_membros ADD COLUMN cronograma TEXT NULL`,
   `ALTER TABLE atividades ADD COLUMN meta_id BIGINT NULL`,
+  `ALTER TABLE atividades ADD COLUMN concluida TINYINT(1) NOT NULL DEFAULT 0`,
 
   // Foreign keys — duplicatas ignoradas pelo catch (código 1826).
   `ALTER TABLE usuarios ADD CONSTRAINT fk_usuarios_supervisor

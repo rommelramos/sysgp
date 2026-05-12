@@ -44,6 +44,7 @@ export const atividadeSchema = z.object({
   descricao: z.string().optional(),
   dataInicio: z.string().optional(),
   dataFim: z.string().optional(),
+  concluida: z.boolean().optional(),
 });
 
 export const relatorioSchema = z.object({

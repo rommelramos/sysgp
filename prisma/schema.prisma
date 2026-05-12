@@ -151,6 +151,7 @@ model Atividade {
   descricao  String?   @db.LongText
   dataInicio DateTime? @map("data_inicio") @db.Date
   dataFim    DateTime? @map("data_fim") @db.Date
+  concluida  Boolean   @default(false)
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
 

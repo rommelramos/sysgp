@@ -13,27 +13,42 @@ export async function GET(req: NextRequest) {
   const page = parseInt(searchParams.get("page") || "1");
   const pageSize = parseInt(searchParams.get("pageSize") || "25");
   const projetoId = searchParams.get("projetoId");
+  const filtroUsuarioId = searchParams.get("usuarioId");
   const dataInicio = searchParams.get("dataInicio");
   const dataFim = searchParams.get("dataFim");
+  const concluida = searchParams.get("concluida");
 
   const where: Record<string, unknown> = {};
 
-  if (session.perfil === "MEMBRO") {
-    where.usuarioId = BigInt(session.id);
-  } else if (session.perfil === "SUPERVISOR") {
-    const projetos = await prisma.projetoMembro.findMany({
-      where: { usuarioId: BigInt(session.id) },
-      select: { projetoId: true },
-    });
-    where.projetoId = { in: projetos.map((p: { projetoId: bigint }) => p.projetoId) };
+  if (projetoId) {
+    where.projetoId = BigInt(projetoId);
+    // MEMBROs can see all activities in projects they belong to
+    if (session.perfil === "MEMBRO") {
+      const membro = await prisma.projetoMembro.findFirst({
+        where: { projetoId: BigInt(projetoId), usuarioId: BigInt(session.id), statusVinculo: "ATIVO" },
+      });
+      if (!membro) return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+    }
+  } else {
+    // Without projetoId, apply role-based restrictions
+    if (session.perfil === "MEMBRO") {
+      where.usuarioId = BigInt(session.id);
+    } else if (session.perfil === "SUPERVISOR") {
+      const projetos = await prisma.projetoMembro.findMany({
+        where: { usuarioId: BigInt(session.id) },
+        select: { projetoId: true },
+      });
+      where.projetoId = { in: projetos.map((p: { projetoId: bigint }) => p.projetoId) };
+    }
   }
 
-  if (projetoId) where.projetoId = BigInt(projetoId);
+  if (filtroUsuarioId) where.usuarioId = BigInt(filtroUsuarioId);
   if (dataInicio || dataFim) {
     where.dataInicio = {};
     if (dataInicio) (where.dataInicio as Record<string, Date>).gte = new Date(dataInicio);
     if (dataFim) (where.dataInicio as Record<string, Date>).lte = new Date(dataFim);
   }
+  if (concluida !== null && concluida !== "") where.concluida = concluida === "true";
 
   const [total, atividades] = await Promise.all([
     prisma.atividade.count({ where }),
@@ -47,7 +62,7 @@ export async function GET(req: NextRequest) {
       },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ concluida: "asc" }, { dataInicio: "asc" }, { createdAt: "desc" }],
     }),
   ]);
 

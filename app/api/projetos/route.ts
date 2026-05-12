@@ -51,8 +51,25 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
+  // Fetch completed activities count per project in a single query
+  const projetoIds = projetos.map((p: { id: bigint }) => p.id);
+  type ConcluidasGroup = { projetoId: bigint; _count: { id: number } };
+  const concluidasGroups: ConcluidasGroup[] = projetoIds.length > 0
+    ? await prisma.atividade.groupBy({
+        by: ["projetoId"],
+        where: { projetoId: { in: projetoIds }, concluida: true },
+        _count: { id: true },
+      })
+    : [];
+  const concluidasMap = new Map(concluidasGroups.map((g: ConcluidasGroup) => [String(g.projetoId), g._count.id]));
+
+  const data = projetos.map((p: { id: bigint }) => ({
+    ...p,
+    _countConcluidas: concluidasMap.get(String(p.id)) ?? 0,
+  }));
+
   return NextResponse.json(
-    bigintToString({ data: projetos, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
+    bigintToString({ data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   );
 }
 

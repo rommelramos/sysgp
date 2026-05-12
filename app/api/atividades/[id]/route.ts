@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const parsed = atividadeSchema.partial().safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 });
 
-  const { titulo, descricao, metaId, dataInicio, dataFim } = parsed.data;
+  const { titulo, descricao, metaId, dataInicio, dataFim, concluida } = parsed.data;
 
   const updated = await prisma.atividade.update({
     where: { id: BigInt(id) },
@@ -57,6 +57,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(metaId !== undefined && { metaId: metaId ? BigInt(metaId) : null }),
       ...(dataInicio !== undefined && { dataInicio: dataInicio ? new Date(dataInicio) : null }),
       ...(dataFim !== undefined && { dataFim: dataFim ? new Date(dataFim) : null }),
+      ...(concluida !== undefined && { concluida }),
     },
     include: {
       projeto: { select: { id: true, titulo: true } },

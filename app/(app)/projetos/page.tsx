@@ -26,6 +26,7 @@ interface Projeto {
   status: string;
   coordenador: { id: string; nomeCompleto: string };
   _count: { membros: number; atividades: number };
+  _countConcluidas: number;
 }
 
 const statusOpts = [
@@ -49,9 +50,18 @@ const iconColors = [
 function getProgress(projeto: Projeto): number {
   if (projeto.status === "CONCLUIDO") return 100;
   if (projeto.status === "SUSPENSO") return 0;
-  // Deterministic pseudo-progress from id hash
-  const hash = projeto.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  return 20 + (hash % 65);
+  const total = projeto._count.atividades;
+  if (total > 0) {
+    return Math.round((projeto._countConcluidas / total) * 100);
+  }
+  // No activities yet: show time elapsed as a proxy
+  if (!projeto.dataInicio || !projeto.dataFimPrevista) return 0;
+  const start = new Date(projeto.dataInicio).getTime();
+  const end = new Date(projeto.dataFimPrevista).getTime();
+  const now = Date.now();
+  if (now <= start) return 0;
+  if (now >= end) return 99;
+  return Math.round(((now - start) / (end - start)) * 100);
 }
 
 function getDaysRemaining(dataFim: string | null): string {
