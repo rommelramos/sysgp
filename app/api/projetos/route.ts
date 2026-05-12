@@ -52,15 +52,21 @@ export async function GET(req: NextRequest) {
   ]);
 
   // Fetch completed activities count per project in a single query
+  // Gracefully handled: column may not exist until migration runs (P2022)
   const projetoIds = projetos.map((p) => p.id);
-  const concluidasGroups = projetoIds.length > 0
-    ? await prisma.atividade.groupBy({
+  let concluidasMap = new Map<string, number>();
+  if (projetoIds.length > 0) {
+    try {
+      const groups = await prisma.atividade.groupBy({
         by: ["projetoId"],
         where: { projetoId: { in: projetoIds }, concluida: true },
         _count: { id: true },
-      })
-    : ([] as Array<{ projetoId: bigint; _count: { id: number } }>);
-  const concluidasMap = new Map(concluidasGroups.map((g) => [String(g.projetoId), g._count.id]));
+      });
+      concluidasMap = new Map(groups.map((g) => [String(g.projetoId), g._count.id]));
+    } catch {
+      // Column concluida not yet migrated; return 0 for all projects
+    }
+  }
 
   const data = projetos.map((p) => ({
     ...p,

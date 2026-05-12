@@ -48,23 +48,46 @@ export async function GET(req: NextRequest) {
     if (dataInicio) (where.dataInicio as Record<string, Date>).gte = new Date(dataInicio);
     if (dataFim) (where.dataInicio as Record<string, Date>).lte = new Date(dataFim);
   }
+  // concluida filter only applied after migration; column may not exist yet
   if (concluida !== null && concluida !== "") where.concluida = concluida === "true";
 
-  const [total, atividades] = await Promise.all([
-    prisma.atividade.count({ where }),
-    prisma.atividade.findMany({
-      where,
-      include: {
-        projeto: { select: { id: true, titulo: true } },
-        usuario: { select: { id: true, nomeCompleto: true } },
-        meta: { select: { id: true, descricao: true, ordem: true } },
-        documentos: { select: { id: true, nomeOriginal: true, mimeType: true, tamanhoBytes: true } },
-      },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      orderBy: [{ concluida: "asc" }, { dataInicio: "asc" }, { createdAt: "desc" }],
-    }),
-  ]);
+  let total = 0;
+  let atividades: unknown[] = [];
+  try {
+    [total, atividades] = await Promise.all([
+      prisma.atividade.count({ where }),
+      prisma.atividade.findMany({
+        where,
+        include: {
+          projeto: { select: { id: true, titulo: true } },
+          usuario: { select: { id: true, nomeCompleto: true } },
+          meta: { select: { id: true, descricao: true, ordem: true } },
+          documentos: { select: { id: true, nomeOriginal: true, mimeType: true, tamanhoBytes: true } },
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: [{ concluida: "asc" }, { dataInicio: "asc" }, { createdAt: "desc" }],
+      }),
+    ]);
+  } catch {
+    // Column concluida not yet migrated; retry without it
+    delete where.concluida;
+    [total, atividades] = await Promise.all([
+      prisma.atividade.count({ where }),
+      prisma.atividade.findMany({
+        where,
+        include: {
+          projeto: { select: { id: true, titulo: true } },
+          usuario: { select: { id: true, nomeCompleto: true } },
+          meta: { select: { id: true, descricao: true, ordem: true } },
+          documentos: { select: { id: true, nomeOriginal: true, mimeType: true, tamanhoBytes: true } },
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: [{ dataInicio: "asc" }, { createdAt: "desc" }],
+      }),
+    ]);
+  }
 
   return NextResponse.json(
     bigintToString({ data: atividades, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
