@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verificarAccessToken } from "@/lib/session";
 
-const publicRoutes = ["/login", "/recuperar-senha", "/resetar-senha", "/setup"];
+const publicRoutes = ["/login", "/recuperar-senha", "/resetar-senha", "/setup", "/cadastro"];
 const apiPublicRoutes = [
   "/api/auth/login",
   "/api/auth/recuperar-senha",
   "/api/auth/resetar-senha",
   "/api/auth/refresh",
+  "/api/convites",
   "/api/setup",
   "/api/setup/testar",
   "/api/setup/schema",
