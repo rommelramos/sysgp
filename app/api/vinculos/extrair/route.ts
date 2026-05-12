@@ -39,7 +39,7 @@ const EXTRACTION_PROMPT = `Extraia as informações do plano de trabalho e retor
   "duracaoMeses": 12,
   "dataInicioBolsa": "YYYY-MM-DD",
   "dataFimBolsa": "YYYY-MM-DD",
-  "resultadosEsperados": "texto com resultados esperados",
+  "resultadosEsperados": "resumo curto (máx 300 chars) dos resultados esperados",
   "cronograma": [
     { "nome": "nome da atividade", "dataInicio": "YYYY-MM-DD", "dataFim": "YYYY-MM-DD" }
   ],
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
-      max_tokens: 1024,
+      max_tokens: 2048,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user" as const, content: `${EXTRACTION_PROMPT}\n\n${docText}` }],
     });
