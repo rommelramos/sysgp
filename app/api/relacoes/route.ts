@@ -42,8 +42,10 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const projetoIdsSet = new Set(projetos.map((p) => String(p.id)));
-  const filteredMembros = membros.filter((m) => projetoIdsSet.has(String(m.projetoId)));
+  type PRow = { id: bigint; titulo: string; status: string; coordenadorId: bigint; coordenador: { id: bigint; nomeCompleto: string; perfil: string } };
+  type MRow = { id: bigint; projetoId: bigint; usuarioId: bigint; isBolsista: boolean; valorBolsa: number | null; usuario: { id: bigint; nomeCompleto: string; perfil: string }; projeto: { id: bigint; titulo: string; status: string } };
+  const projetoIdsSet = new Set((projetos as PRow[]).map((p) => String(p.id)));
+  const filteredMembros = (membros as MRow[]).filter((m) => projetoIdsSet.has(String(m.projetoId)));
 
   const nodes: Array<Record<string, unknown>> = [];
   const links: Array<{ source: string; target: string; tipo: string }> = [];
@@ -81,7 +83,7 @@ export async function GET(req: NextRequest) {
       });
     });
   } else {
-    projetos.forEach((p) => {
+    (projetos as PRow[]).forEach((p) => {
       addNode({ id: `projeto_${p.id}`, tipo: "PROJETO", label: p.titulo, status: p.status });
       addNode({
         id: `supervisor_${p.coordenadorId}`,

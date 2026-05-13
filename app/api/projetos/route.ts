@@ -53,7 +53,9 @@ export async function GET(req: NextRequest) {
 
   // Fetch completed activities count per project in a single query
   // Gracefully handled: column may not exist until migration runs (P2022)
-  const projetoIds = projetos.map((p) => p.id);
+  type PRow = { id: bigint };
+  type GRow = { projetoId: bigint; _count: { id: number } };
+  const projetoIds = projetos.map((p: PRow) => p.id);
   let concluidasMap = new Map<string, number>();
   if (projetoIds.length > 0) {
     try {
@@ -62,13 +64,13 @@ export async function GET(req: NextRequest) {
         where: { projetoId: { in: projetoIds }, concluida: true },
         _count: { id: true },
       });
-      concluidasMap = new Map(groups.map((g) => [String(g.projetoId), g._count.id]));
+      concluidasMap = new Map((groups as GRow[]).map((g) => [String(g.projetoId), g._count.id]));
     } catch {
       // Column concluida not yet migrated; return 0 for all projects
     }
   }
 
-  const data = projetos.map((p) => ({
+  const data = projetos.map((p: PRow) => ({
     ...p,
     _countConcluidas: concluidasMap.get(String(p.id)) ?? 0,
   }));

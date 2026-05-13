@@ -43,10 +43,24 @@ export async function GET(req: NextRequest) {
   }
 
   if (filtroUsuarioId) where.usuarioId = BigInt(filtroUsuarioId);
+
+  // Legacy date range (dataInicio field of atividade)
   if (dataInicio || dataFim) {
     where.dataInicio = {};
     if (dataInicio) (where.dataInicio as Record<string, Date>).gte = new Date(dataInicio);
     if (dataFim) (where.dataInicio as Record<string, Date>).lte = new Date(dataFim);
+  }
+
+  // Period filter: dataInicio >= periodoInicio AND dataFim <= periodoFim
+  const periodoInicio = searchParams.get("periodoInicio");
+  const periodoFim = searchParams.get("periodoFim");
+  if (periodoInicio) {
+    const cur = (where.dataInicio as Record<string, Date>) ?? {};
+    cur.gte = new Date(periodoInicio);
+    where.dataInicio = cur;
+  }
+  if (periodoFim) {
+    where.dataFim = { lte: new Date(periodoFim) };
   }
   // concluida filter only applied after migration; column may not exist yet
   if (concluida !== null && concluida !== "") where.concluida = concluida === "true";
