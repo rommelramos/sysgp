@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Plus, FileText, Pencil, Trash2, CheckCircle2, Circle } from "lucide-react";
+import { Plus, FileText, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -58,7 +58,7 @@ export default function AtividadesPage() {
   const [editTarget, setEditTarget] = useState<Atividade | null>(null);
   const [projetos, setProjetos] = useState<Array<{ id: string; titulo: string }>>([]);
   const [metas, setMetas] = useState<MetaOpt[]>([]);
-  const [form, setForm] = useState({ projetoId: "", metaId: "", titulo: "", descricao: "", dataInicio: "", dataFim: "" });
+  const [form, setForm] = useState({ projetoId: "", metaId: "", titulo: "", descricao: "", dataInicio: "", dataFim: "", concluida: false });
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -178,7 +178,7 @@ export default function AtividadesPage() {
 
   function openCreate() {
     setEditTarget(null);
-    setForm({ projetoId: "", metaId: "", titulo: "", descricao: "", dataInicio: "", dataFim: "" });
+    setForm({ projetoId: "", metaId: "", titulo: "", descricao: "", dataInicio: "", dataFim: "", concluida: false });
     setUploadedFiles([]);
     setModalOpen(true);
   }
@@ -192,6 +192,7 @@ export default function AtividadesPage() {
       descricao: a.descricao || "",
       dataInicio: a.dataInicio ? a.dataInicio.slice(0, 10) : "",
       dataFim: a.dataFim ? a.dataFim.slice(0, 10) : "",
+      concluida: a.concluida,
     });
     setUploadedFiles([]);
     setModalOpen(true);
@@ -200,6 +201,13 @@ export default function AtividadesPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+
+    if (form.concluida && !form.metaId) {
+      toast("error", "Associe uma meta ao plano de trabalho antes de marcar como concluída");
+      setSubmitting(false);
+      return;
+    }
+
     const payload = { ...form, metaId: form.metaId || null };
 
     let res: Response;
@@ -230,7 +238,7 @@ export default function AtividadesPage() {
 
     toast("success", editTarget ? "Atividade atualizada!" : "Atividade registrada com sucesso!");
     setModalOpen(false);
-    setForm({ projetoId: "", metaId: "", titulo: "", descricao: "", dataInicio: "", dataFim: "" });
+    setForm({ projetoId: "", metaId: "", titulo: "", descricao: "", dataInicio: "", dataFim: "", concluida: false });
     setUploadedFiles([]);
     carregar();
     setSubmitting(false);
@@ -309,26 +317,18 @@ export default function AtividadesPage() {
               className={`border rounded-xl p-4 hover:shadow-[0_0_20px_rgba(37,99,235,0.1)] transition-all ${getRowClass(a)}`}
             >
               <div className="flex items-start justify-between gap-3">
-                {/* Concluida toggle */}
-                <button
-                  onClick={() => toggleConcluida(a)}
-                  className="mt-0.5 shrink-0 text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors"
-                  title={a.concluida ? "Marcar como em andamento" : "Marcar como concluída"}
-                >
-                  {a.concluida
-                    ? <CheckCircle2 size={20} className="text-green-500" />
-                    : <Circle size={20} />
-                  }
-                </button>
-
                 <div className="flex-1 min-w-0" style={{ marginLeft: '5px' }}>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className={`text-sm font-semibold text-[var(--text-primary)] ${a.concluida ? "line-through text-[var(--text-muted)]" : ""}`}>
                       {a.titulo}
                     </h3>
-                    {a.concluida && (
-                      <Badge value="CONCLUIDO" />
-                    )}
+                    <button
+                      onClick={() => toggleConcluida(a)}
+                      title={a.concluida ? "Marcar como Em Andamento" : "Marcar como Concluída"}
+                      className="transition-opacity hover:opacity-75"
+                    >
+                      <Badge value={a.concluida ? "CONCLUIDO" : "EM_ANDAMENTO"} />
+                    </button>
                   </div>
                   {a.meta && (
                     <p className="text-[11px] text-[var(--accent-primary)] mt-0.5 font-medium">
@@ -426,6 +426,17 @@ export default function AtividadesPage() {
             <Input label="Data de Início" type="date" value={form.dataInicio} onChange={(e) => setForm(f => ({ ...f, dataInicio: e.target.value }))} />
             <Input label="Data de Fim" type="date" value={form.dataFim} onChange={(e) => setForm(f => ({ ...f, dataFim: e.target.value }))} />
           </div>
+          {editTarget && (
+            <Select
+              label="Status"
+              value={form.concluida ? "true" : "false"}
+              onChange={(e) => setForm(f => ({ ...f, concluida: e.target.value === "true" }))}
+              options={[
+                { value: "false", label: "Em Andamento" },
+                { value: "true", label: "Concluída" },
+              ]}
+            />
+          )}
           {!editTarget && (
             <div>
               <label className="text-sm font-medium text-[var(--text-secondary)] block mb-2">
