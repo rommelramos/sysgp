@@ -46,7 +46,32 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  return NextResponse.json(bigintToString({ data: vinculos, total, page, pageSize }));
+  // Fetch activities for all bindings in one query
+  type VRow = { projetoId: bigint; usuarioId: bigint };
+  type ARow = { id: bigint; titulo: string; dataInicio: Date | null; dataFim: Date | null; projetoId: bigint; usuarioId: bigint };
+  const projetoIdSet = new Set<bigint>(vinculos.map((v: VRow) => v.projetoId));
+  const usuarioIdSet = new Set<bigint>(vinculos.map((v: VRow) => v.usuarioId));
+  const todasAtividades: ARow[] = projetoIdSet.size > 0
+    ? await prisma.atividade.findMany({
+        where: { projetoId: { in: [...projetoIdSet] }, usuarioId: { in: [...usuarioIdSet] } },
+        select: { id: true, titulo: true, dataInicio: true, dataFim: true, projetoId: true, usuarioId: true },
+        orderBy: [{ dataInicio: "asc" }, { createdAt: "asc" }],
+      })
+    : [];
+
+  const atividadesMap = new Map<string, ARow[]>();
+  todasAtividades.forEach((a: ARow) => {
+    const key = `${a.projetoId}-${a.usuarioId}`;
+    if (!atividadesMap.has(key)) atividadesMap.set(key, []);
+    atividadesMap.get(key)!.push(a);
+  });
+
+  const data = vinculos.map((v: VRow) => ({
+    ...v,
+    atividades: atividadesMap.get(`${v.projetoId}-${v.usuarioId}`) ?? [],
+  }));
+
+  return NextResponse.json(bigintToString({ data, total, page, pageSize }));
 }
 
 async function podeGerenciarVinculo(sessionId: string, projetoId: bigint): Promise<boolean> {
@@ -83,6 +108,14 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 });
 
   const d = parsed.data;
+  const usuarioIdBig = BigInt(d.usuarioId);
+
+  // Check if this is a new binding before upsert
+  const existingVinculo = await prisma.projetoMembro.findUnique({
+    where: { projetoId_usuarioId: { projetoId, usuarioId: usuarioIdBig } },
+    select: { id: true },
+  });
+  const isNew = !existingVinculo;
 
   if (d.isCoordenador) {
     await prisma.projetoMembro.updateMany({
@@ -92,10 +125,10 @@ export async function POST(req: NextRequest) {
   }
 
   const vinculo = await prisma.projetoMembro.upsert({
-    where: { projetoId_usuarioId: { projetoId, usuarioId: BigInt(d.usuarioId) } },
+    where: { projetoId_usuarioId: { projetoId, usuarioId: usuarioIdBig } },
     create: {
       projetoId,
-      usuarioId: BigInt(d.usuarioId),
+      usuarioId: usuarioIdBig,
       funcao: d.funcao || null,
       isCoordenador: d.isCoordenador,
       isBolsista: d.isBolsista,
@@ -105,7 +138,6 @@ export async function POST(req: NextRequest) {
       dataFimBolsa: d.dataFimBolsa ? new Date(d.dataFimBolsa) : null,
       cargaHoraria: d.cargaHoraria || null,
       resultadosEsperados: d.resultadosEsperados || null,
-      cronograma: d.cronograma || null,
       statusVinculo: d.statusVinculo as "ATIVO" | "ENCERRADO" | "SUSPENSO",
     },
     update: {
@@ -118,7 +150,6 @@ export async function POST(req: NextRequest) {
       dataFimBolsa: d.dataFimBolsa ? new Date(d.dataFimBolsa) : null,
       cargaHoraria: d.cargaHoraria || null,
       resultadosEsperados: d.resultadosEsperados || null,
-      cronograma: d.cronograma || null,
       statusVinculo: d.statusVinculo as "ATIVO" | "ENCERRADO" | "SUSPENSO",
     },
     include: {
@@ -137,6 +168,22 @@ export async function POST(req: NextRequest) {
         ordem: i + 1,
       })),
     });
+  }
+
+  // On first creation, convert cronograma items into atividade records
+  if (isNew && d.cronograma && d.cronograma.length > 0) {
+    const atividadesData = d.cronograma
+      .filter((c) => c.nome?.trim())
+      .map((c) => ({
+        projetoId,
+        usuarioId: usuarioIdBig,
+        titulo: c.nome,
+        dataInicio: c.dataInicio ? new Date(c.dataInicio) : null,
+        dataFim: c.dataFim ? new Date(c.dataFim) : null,
+      }));
+    if (atividadesData.length > 0) {
+      await prisma.atividade.createMany({ data: atividadesData });
+    }
   }
 
   await registrarAuditoria({

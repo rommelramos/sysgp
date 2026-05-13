@@ -24,7 +24,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (session.perfil === "MEMBRO" && String(vinculo.usuarioId) !== session.id)
     return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
 
-  return NextResponse.json(bigintToString(vinculo));
+  const atividades = await prisma.atividade.findMany({
+    where: { projetoId: vinculo.projetoId, usuarioId: vinculo.usuarioId },
+    select: { id: true, titulo: true, dataInicio: true, dataFim: true },
+    orderBy: [{ dataInicio: "asc" }, { createdAt: "asc" }],
+  });
+
+  return NextResponse.json(bigintToString({ ...vinculo, atividades }));
 }
 
 async function podeGerenciarVinculo(sessionId: string, projetoId: bigint): Promise<boolean> {
@@ -47,12 +53,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const vinculoId = BigInt(id);
 
+  const vinculoExist = await prisma.projetoMembro.findUnique({
+    where: { id: vinculoId },
+    select: { projetoId: true, usuarioId: true },
+  });
+  if (!vinculoExist) return NextResponse.json({ error: "Vínculo não encontrado" }, { status: 404 });
+
   if (session.perfil !== "ADMINISTRADOR") {
-    const vinculoExist = await prisma.projetoMembro.findUnique({
-      where: { id: vinculoId },
-      select: { projetoId: true },
-    });
-    if (!vinculoExist) return NextResponse.json({ error: "Vínculo não encontrado" }, { status: 404 });
     const pode = await podeGerenciarVinculo(session.id, vinculoExist.projetoId);
     if (!pode) return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
   }
@@ -65,7 +72,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const d = parsed.data;
 
-  const vinculo = await prisma.projetoMembro.update({
+  await prisma.projetoMembro.update({
     where: { id: vinculoId },
     data: {
       ...(d.funcao !== undefined && { funcao: d.funcao || null }),
@@ -77,13 +84,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(d.dataFimBolsa !== undefined && { dataFimBolsa: d.dataFimBolsa ? new Date(d.dataFimBolsa) : null }),
       ...(d.cargaHoraria !== undefined && { cargaHoraria: d.cargaHoraria }),
       ...(d.resultadosEsperados !== undefined && { resultadosEsperados: d.resultadosEsperados || null }),
-      ...(d.cronograma !== undefined && { cronograma: d.cronograma || null }),
       ...(d.statusVinculo && { statusVinculo: d.statusVinculo as "ATIVO" | "ENCERRADO" | "SUSPENSO" }),
-    },
-    include: {
-      projeto: { select: { id: true, titulo: true } },
-      usuario: { select: { id: true, nomeCompleto: true, email: true } },
-      metas: { orderBy: { ordem: "asc" } },
     },
   });
 
@@ -97,6 +98,27 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           ordem: i + 1,
         })),
       });
+    }
+  }
+
+  // Sync activities: delete all member activities in this project and recreate from cronograma
+  if (d.cronograma !== undefined) {
+    await prisma.atividade.deleteMany({
+      where: { projetoId: vinculoExist.projetoId, usuarioId: vinculoExist.usuarioId },
+    });
+    if (d.cronograma && d.cronograma.length > 0) {
+      const atividadesData = d.cronograma
+        .filter((c) => c.nome?.trim())
+        .map((c) => ({
+          projetoId: vinculoExist.projetoId,
+          usuarioId: vinculoExist.usuarioId,
+          titulo: c.nome,
+          dataInicio: c.dataInicio ? new Date(c.dataInicio) : null,
+          dataFim: c.dataFim ? new Date(c.dataFim) : null,
+        }));
+      if (atividadesData.length > 0) {
+        await prisma.atividade.createMany({ data: atividadesData });
+      }
     }
   }
 
@@ -117,7 +139,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     },
   });
 
-  return NextResponse.json(bigintToString(result));
+  const atividades = await prisma.atividade.findMany({
+    where: { projetoId: vinculoExist.projetoId, usuarioId: vinculoExist.usuarioId },
+    select: { id: true, titulo: true, dataInicio: true, dataFim: true },
+    orderBy: [{ dataInicio: "asc" }, { createdAt: "asc" }],
+  });
+
+  return NextResponse.json(bigintToString({ ...result, atividades }));
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

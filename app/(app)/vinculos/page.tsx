@@ -23,6 +23,13 @@ interface CronogramaItem {
   dataFim: string;
 }
 
+interface AtividadeSimples {
+  id: string;
+  titulo: string;
+  dataInicio: string | null;
+  dataFim: string | null;
+}
+
 interface Vinculo {
   id: string;
   funcao: string | null;
@@ -34,12 +41,12 @@ interface Vinculo {
   dataFimBolsa: string | null;
   cargaHoraria: number | null;
   resultadosEsperados: string | null;
-  cronograma: string | null;
   statusVinculo: string;
   createdAt: string;
   projeto: { id: string; titulo: string; status: string };
   usuario: { id: string; nomeCompleto: string; email: string; perfil: string };
   metas: Meta[];
+  atividades: AtividadeSimples[];
 }
 
 const statusVinculoOpts = [
@@ -91,13 +98,8 @@ function fuzzyMatchId<T extends { id: string }>(
   return best ? best.id : null;
 }
 
-function parseCronograma(raw: string | null): CronogramaItem[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed as CronogramaItem[];
-  } catch { /* not JSON */ }
-  return [];
+function atividadeParaCronograma(a: AtividadeSimples): CronogramaItem {
+  return { nome: a.titulo, dataInicio: a.dataInicio || "", dataFim: a.dataFim || "" };
 }
 
 export default function VinculosPage() {
@@ -189,7 +191,7 @@ export default function VinculosPage() {
       statusVinculo: v.statusVinculo,
     });
     setMetas(v.metas.map((m) => ({ descricao: m.descricao })));
-    setCronogramaItems(parseCronograma(v.cronograma));
+    setCronogramaItems((v.atividades ?? []).map(atividadeParaCronograma));
     setModalOpen(true);
   }
 
@@ -272,7 +274,7 @@ export default function VinculosPage() {
         dataInicioBolsa: form.dataInicioBolsa || null,
         dataFimBolsa: form.dataFimBolsa || null,
         resultadosEsperados: form.resultadosEsperados || null,
-        cronograma: validItems.length > 0 ? JSON.stringify(validItems) : null,
+        cronograma: validItems,
         metas: metas.filter((m) => m.descricao.trim()),
       };
 
@@ -382,7 +384,7 @@ export default function VinculosPage() {
 
               <div className="space-y-2 pl-3 border-l-2 border-[var(--border)] ml-4">
                 {grupo.vinculos.map((v, i) => {
-                  const cronItems = parseCronograma(v.cronograma);
+                  const cronItems = v.atividades ?? [];
                   const canEdit = isAdmin || projetosIds.has(v.projeto.id);
                   return (
                     <motion.div
@@ -483,15 +485,15 @@ export default function VinculosPage() {
                             <div style={{ marginLeft: '5px' }}>
                               <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide font-semibold mb-2">Cronograma de Atividades</p>
                               <div className="space-y-1.5">
-                                {cronItems.map((item, idx) => (
-                                  <div key={idx} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-[var(--border)]">
+                                {cronItems.map((item) => (
+                                  <div key={item.id} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-[var(--border)]">
                                     <CalendarRange size={13} className="text-[var(--accent-primary)] shrink-0" />
-                                    <span className="text-sm font-medium text-[var(--text-primary)] flex-1">{item.nome}</span>
+                                    <span className="text-sm font-medium text-[var(--text-primary)] flex-1">{item.titulo}</span>
                                     {(item.dataInicio || item.dataFim) && (
                                       <span className="text-xs text-[var(--text-muted)] font-mono shrink-0">
-                                        {formatarData(item.dataInicio || null)}
+                                        {formatarData(item.dataInicio)}
                                         {item.dataInicio && item.dataFim && " → "}
-                                        {formatarData(item.dataFim || null)}
+                                        {formatarData(item.dataFim)}
                                       </span>
                                     )}
                                   </div>

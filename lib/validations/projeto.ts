@@ -27,7 +27,11 @@ export const membroProjetoSchema = z.object({
   dataFimBolsa: z.string().optional().nullable(),
   cargaHoraria: z.number().int().positive().optional().nullable(),
   resultadosEsperados: z.string().optional().nullable(),
-  cronograma: z.string().optional().nullable(),
+  cronograma: z.array(z.object({
+    nome: z.string(),
+    dataInicio: z.string().optional().nullable(),
+    dataFim: z.string().optional().nullable(),
+  })).optional().nullable(),
   statusVinculo: z.enum(["ATIVO", "ENCERRADO", "SUSPENSO"]).default("ATIVO"),
   metas: z.array(z.object({ descricao: z.string().min(1), ordem: z.number().int().default(1) })).optional(),
 });
