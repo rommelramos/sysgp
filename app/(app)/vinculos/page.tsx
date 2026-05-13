@@ -316,6 +316,25 @@ export default function VinculosPage() {
     }
   }
 
+  async function toggleBolsista(v: Vinculo) {
+    const novoValor = !v.isBolsista;
+    setVinculos(prev => prev.map(x => x.id === v.id ? { ...x, isBolsista: novoValor } : x));
+    try {
+      const res = await fetch(`/api/vinculos/${v.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isBolsista: novoValor }),
+      });
+      if (!res.ok) {
+        setVinculos(prev => prev.map(x => x.id === v.id ? { ...x, isBolsista: v.isBolsista } : x));
+        toast("error", "Erro ao atualizar vínculo");
+      }
+    } catch {
+      setVinculos(prev => prev.map(x => x.id === v.id ? { ...x, isBolsista: v.isBolsista } : x));
+      toast("error", "Erro ao atualizar vínculo");
+    }
+  }
+
   function addMeta() { setMetas((m) => [...m, { descricao: "" }]); }
   function removeMeta(i: number) { setMetas((m) => m.filter((_, idx) => idx !== i)); }
   function updateMeta(i: number, val: string) {
@@ -405,9 +424,17 @@ export default function VinculosPage() {
                             {v.isCoordenador && (
                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 uppercase tracking-wide">Coord.</span>
                             )}
-                            {v.isBolsista && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700 uppercase tracking-wide">Bolsista</span>
-                            )}
+                            {canEdit ? (
+                              <button
+                                onClick={() => toggleBolsista(v)}
+                                title={v.isBolsista ? "Remover bolsista" : "Marcar como bolsista"}
+                                className="transition-opacity hover:opacity-70"
+                              >
+                                <Badge value={v.isBolsista ? "BOLSISTA" : "NAO_BOLSISTA"} />
+                              </button>
+                            ) : v.isBolsista ? (
+                              <Badge value="BOLSISTA" />
+                            ) : null}
                           </div>
                           {v.funcao && (
                             <p className="text-xs text-[var(--text-muted)] truncate">{v.funcao}</p>

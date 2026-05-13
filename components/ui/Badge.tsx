@@ -10,6 +10,7 @@ const variants: Record<string, string> = {
   supervisor:   "bg-teal-50     text-teal-700    border-teal-200",
   administrador:"bg-violet-50   text-violet-700  border-violet-200",
   bolsista:     "bg-emerald-50  text-emerald-700 border-emerald-200",
+  nao_bolsista: "bg-slate-100   text-slate-500   border-slate-200",
   info:         "bg-blue-50     text-blue-700    border-blue-200",
   warning:      "bg-amber-50    text-amber-700   border-amber-200",
   danger:       "bg-red-50      text-red-700     border-red-200",
@@ -24,6 +25,8 @@ const labels: Record<string, string> = {
   MEMBRO:       "Membro",
   SUPERVISOR:   "Supervisor",
   ADMINISTRADOR:"Administrador",
+  BOLSISTA:     "Bolsista",
+  NAO_BOLSISTA: "Não bolsista",
 };
 
 interface BadgeProps {
