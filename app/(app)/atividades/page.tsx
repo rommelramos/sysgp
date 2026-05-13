@@ -89,15 +89,24 @@ export default function AtividadesPage() {
   useEffect(() => { carregar(); }, [carregar]);
 
   useEffect(() => {
+    if (!user) return;
     fetch("/api/projetos?pageSize=100")
       .then((r) => r.json())
       .then((d) => setProjetos(d.data || []))
       .catch(() => {});
-    fetch("/api/usuarios?pageSize=200")
-      .then((r) => r.json())
-      .then((d) => setUsuarios(d.data || []))
-      .catch(() => {});
-  }, []);
+    if (user.perfil === "ADMINISTRADOR") {
+      fetch("/api/usuarios?pageSize=200")
+        .then((r) => r.json())
+        .then((d) => setUsuarios(d.data || []))
+        .catch(() => {});
+    } else if (user.perfil === "SUPERVISOR") {
+      fetch(`/api/usuarios?supervisorId=${user.id}&pageSize=200`)
+        .then((r) => r.json())
+        .then((d) => setUsuarios(d.data || []))
+        .catch(() => {});
+    }
+    // MEMBRO: no user filter dropdown needed
+  }, [user]);
 
   useEffect(() => {
     if (!form.projetoId || !user?.id) { setMetas([]); return; }

@@ -9,10 +9,19 @@ import { bigintToString } from "@/lib/utils";
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  if (session.perfil !== "ADMINISTRADOR")
-    return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
+  const supervisorIdParam = searchParams.get("supervisorId");
+
+  // SUPERVISORs may only query users they supervise (supervisorId must equal their own id)
+  if (session.perfil === "SUPERVISOR") {
+    if (!supervisorIdParam || supervisorIdParam !== session.id) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+    }
+  } else if (session.perfil !== "ADMINISTRADOR") {
+    return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+  }
+
   const page = parseInt(searchParams.get("page") || "1");
   const pageSize = parseInt(searchParams.get("pageSize") || "25");
   const busca = searchParams.get("busca") || "";
@@ -33,6 +42,7 @@ export async function GET(req: NextRequest) {
     ...(perfil ? { perfil: perfil as "MEMBRO" | "SUPERVISOR" | "ADMINISTRADOR" } : {}),
     ...(podeSerCoordenador !== null ? { podeSerCoordenador: podeSerCoordenador === "true" } : {}),
     ...(confirmado !== null ? { confirmado: confirmado === "true" } : {}),
+    ...(supervisorIdParam ? { supervisorId: BigInt(supervisorIdParam) } : {}),
   };
 
   const [total, usuarios] = await Promise.all([

@@ -20,29 +20,45 @@ export async function GET(req: NextRequest) {
 
   const where: Record<string, unknown> = {};
 
-  if (projetoId) {
-    where.projetoId = BigInt(projetoId);
-    // MEMBROs can see all activities in projects they belong to
-    if (session.perfil === "MEMBRO") {
-      const membro = await prisma.projetoMembro.findFirst({
-        where: { projetoId: BigInt(projetoId), usuarioId: BigInt(session.id), statusVinculo: "ATIVO" },
-      });
-      if (!membro) return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
-    }
-  } else {
-    // Without projetoId, apply role-based restrictions
-    if (session.perfil === "MEMBRO") {
-      where.usuarioId = BigInt(session.id);
-    } else if (session.perfil === "SUPERVISOR") {
-      const projetos = await prisma.projetoMembro.findMany({
-        where: { usuarioId: BigInt(session.id) },
-        select: { projetoId: true },
-      });
-      where.projetoId = { in: projetos.map((p: { projetoId: bigint }) => p.projetoId) };
+  // Role-based base filter — applied unconditionally
+  if (session.perfil === "MEMBRO") {
+    // Always restricted to own activities only
+    where.usuarioId = BigInt(session.id);
+  } else if (session.perfil === "SUPERVISOR") {
+    // Own activities + activities of users supervised by this supervisor
+    where.OR = [
+      { usuarioId: BigInt(session.id) },
+      { usuario: { supervisorId: BigInt(session.id) } },
+    ];
+  }
+  // ADMINISTRADOR: no restriction
+
+  if (projetoId) where.projetoId = BigInt(projetoId);
+
+  // filtroUsuarioId is only applied for SUPERVISOR/ADMIN (MEMBRO is already locked to self)
+  if (filtroUsuarioId && session.perfil !== "MEMBRO") {
+    if (session.perfil === "SUPERVISOR") {
+      // Validate the requested user is supervised by this supervisor or is themselves
+      if (filtroUsuarioId !== session.id) {
+        const target = await prisma.usuario.findUnique({
+          where: { id: BigInt(filtroUsuarioId) },
+          select: { supervisorId: true },
+        });
+        if (!target || String(target.supervisorId) !== session.id) {
+          // Not supervised — return empty results without leaking information
+          return NextResponse.json(
+            bigintToString({ data: [], total: 0, page, pageSize, totalPages: 0 })
+          );
+        }
+      }
+      // Replace the OR restriction with the specific user
+      delete where.OR;
+      where.usuarioId = BigInt(filtroUsuarioId);
+    } else {
+      // ADMIN can filter by any user freely
+      where.usuarioId = BigInt(filtroUsuarioId);
     }
   }
-
-  if (filtroUsuarioId) where.usuarioId = BigInt(filtroUsuarioId);
 
   // Legacy date range (dataInicio field of atividade)
   if (dataInicio || dataFim) {
