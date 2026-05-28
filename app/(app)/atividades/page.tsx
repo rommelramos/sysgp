@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { motion } from "framer-motion";
-import { Plus, FileText, Pencil, Trash2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Plus, FileText, Pencil, Trash2, ChevronDown, Activity } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -23,6 +23,19 @@ interface Atividade {
   usuario: { id: string; nomeCompleto: string };
   meta: { id: string; descricao: string; ordem: number } | null;
   documentos: Array<{ id: string; nomeOriginal: string; mimeType: string }>;
+}
+
+interface AcaoDocumento {
+  id: string;
+  nomeOriginal: string;
+  mimeType: string;
+}
+
+interface AcaoAtividade {
+  id: string;
+  descricao: string;
+  dataOcorrido: string;
+  documentos: AcaoDocumento[];
 }
 
 interface MetaOpt { id: string; descricao: string; ordem: number; }
@@ -53,7 +66,7 @@ export default function AtividadesPage() {
   const [periodoFim, setPeriodoFim] = useState("");
   const [usuarios, setUsuarios] = useState<UsuarioOpt[]>([]);
 
-  // Modal / form
+  // Modal / form (atividade)
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Atividade | null>(null);
   const [projetos, setProjetos] = useState<Array<{ id: string; titulo: string }>>([]);
@@ -62,8 +75,21 @@ export default function AtividadesPage() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // Delete confirm
+  // Delete confirm (atividade)
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Ações state
+  const [expandedAcoes, setExpandedAcoes] = useState<Set<string>>(new Set());
+  const [acoesPorAtividade, setAcoesPorAtividade] = useState<Record<string, AcaoAtividade[]>>({});
+  const [acaoLoadingId, setAcaoLoadingId] = useState<string | null>(null);
+  const [acaoDeletingId, setAcaoDeletingId] = useState<string | null>(null);
+
+  // Ação modal
+  const [acaoModalOpen, setAcaoModalOpen] = useState(false);
+  const [acaoAtividadeId, setAcaoAtividadeId] = useState<string | null>(null);
+  const [acaoForm, setAcaoForm] = useState({ descricao: "", dataOcorrido: "" });
+  const [acaoFiles, setAcaoFiles] = useState<UploadedFile[]>([]);
+  const [acaoSubmitting, setAcaoSubmitting] = useState(false);
 
   const toast = useToast();
   const { user } = useAuth();
@@ -79,6 +105,9 @@ export default function AtividadesPage() {
       const data = await res.json();
       setAtividades(data.data || []);
       setTotal(data.total || 0);
+      // Reset expanded ações on reload
+      setExpandedAcoes(new Set());
+      setAcoesPorAtividade({});
     } catch {
       setAtividades([]);
     } finally {
@@ -105,7 +134,6 @@ export default function AtividadesPage() {
         .then((d) => setUsuarios(d.data || []))
         .catch(() => {});
     }
-    // MEMBRO: no user filter dropdown needed
   }, [user]);
 
   useEffect(() => {
@@ -244,6 +272,88 @@ export default function AtividadesPage() {
     setSubmitting(false);
   }
 
+  // ── Ações handlers ──────────────────────────────────────────────────
+
+  async function loadAcoes(atividadeId: string) {
+    setAcaoLoadingId(atividadeId);
+    try {
+      const res = await fetch(`/api/atividades/${atividadeId}/acoes`);
+      if (res.ok) {
+        const data: AcaoAtividade[] = await res.json();
+        setAcoesPorAtividade(prev => ({ ...prev, [atividadeId]: data }));
+      }
+    } catch { /* silently ignore */ }
+    finally { setAcaoLoadingId(null); }
+  }
+
+  function toggleAcoes(atividadeId: string) {
+    setExpandedAcoes(prev => {
+      const next = new Set(prev);
+      if (next.has(atividadeId)) {
+        next.delete(atividadeId);
+      } else {
+        next.add(atividadeId);
+        if (acoesPorAtividade[atividadeId] === undefined) loadAcoes(atividadeId);
+      }
+      return next;
+    });
+  }
+
+  function openAcaoModal(atividadeId: string) {
+    setAcaoAtividadeId(atividadeId);
+    setAcaoForm({ descricao: "", dataOcorrido: new Date().toISOString().slice(0, 10) });
+    setAcaoFiles([]);
+    setAcaoModalOpen(true);
+  }
+
+  async function handleAcaoSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!acaoAtividadeId) return;
+    setAcaoSubmitting(true);
+
+    const res = await fetch(`/api/atividades/${acaoAtividadeId}/acoes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...acaoForm, documentos: acaoFiles }),
+    });
+
+    if (res.ok) {
+      const acao: AcaoAtividade = await res.json();
+      setAcoesPorAtividade(prev => ({
+        ...prev,
+        [acaoAtividadeId]: [...(prev[acaoAtividadeId] || []), acao],
+      }));
+      toast("success", "Ação registrada!");
+      setAcaoModalOpen(false);
+      setAcaoFiles([]);
+    } else {
+      const data = await res.json();
+      toast("error", data.error || "Erro ao registrar ação");
+    }
+    setAcaoSubmitting(false);
+  }
+
+  async function deleteAcao(atividadeId: string, acaoId: string) {
+    setAcaoDeletingId(acaoId);
+    try {
+      const res = await fetch(`/api/atividades/${atividadeId}/acoes/${acaoId}`, { method: "DELETE" });
+      if (res.ok) {
+        setAcoesPorAtividade(prev => ({
+          ...prev,
+          [atividadeId]: (prev[atividadeId] || []).filter(a => a.id !== acaoId),
+        }));
+        toast("success", "Ação removida");
+      } else {
+        const d = await res.json();
+        toast("error", d.error || "Erro ao remover ação");
+      }
+    } catch {
+      toast("error", "Erro ao remover ação");
+    } finally {
+      setAcaoDeletingId(null);
+    }
+  }
+
   const pageSize = 25;
   const totalPages = Math.ceil(total / pageSize);
   const podeExcluir = user?.perfil === "ADMINISTRADOR" || user?.perfil === "MEMBRO";
@@ -301,7 +411,7 @@ export default function AtividadesPage() {
         <div className="space-y-3">
           {atividades.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 gap-3" style={{ marginLeft: '5px' }}>
-              <div className="w-12 h-12 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center" style={{ marginLeft: '5px' }}>
+              <div className="w-12 h-12 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center">
                 <FileText size={22} className="text-[var(--text-muted)]" />
               </div>
               <p className="text-sm font-medium text-[var(--text-secondary)]">Nenhuma atividade encontrada</p>
@@ -381,6 +491,94 @@ export default function AtividadesPage() {
                   )}
                 </div>
               </div>
+
+              {/* Ações section */}
+              <div className="mt-3 pt-3 border-t border-[var(--border)]/60">
+                <button
+                  onClick={() => toggleAcoes(a.id)}
+                  className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--accent-primary)] transition-colors group"
+                >
+                  <Activity size={12} className="group-hover:text-[var(--accent-primary)]" />
+                  <span>
+                    {acoesPorAtividade[a.id] !== undefined
+                      ? `${acoesPorAtividade[a.id].length} ação(ões) realizadas`
+                      : "Ver ações realizadas"}
+                  </span>
+                  {acaoLoadingId === a.id ? (
+                    <div className="w-3 h-3 border border-[var(--accent-primary)] border-t-transparent rounded-full animate-spin ml-1" />
+                  ) : (
+                    <ChevronDown
+                      size={12}
+                      className={`transition-transform ${expandedAcoes.has(a.id) ? "rotate-180" : ""}`}
+                    />
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {expandedAcoes.has(a.id) && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-3 space-y-2">
+                        {(acoesPorAtividade[a.id] || []).length === 0 && (
+                          <p className="text-xs text-[var(--text-muted)] italic pl-1">
+                            Nenhuma ação registrada ainda.
+                          </p>
+                        )}
+                        {(acoesPorAtividade[a.id] || []).map((acao) => (
+                          <div
+                            key={acao.id}
+                            className="bg-[var(--bg-elevated)] border border-[var(--border)]/50 rounded-lg p-3"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-semibold text-[var(--accent-primary)] mb-1">
+                                  {formatarData(acao.dataOcorrido)}
+                                </p>
+                                <p className="text-xs text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
+                                  {acao.descricao}
+                                </p>
+                                {acao.documentos.length > 0 && (
+                                  <div className="flex items-center gap-1 mt-2 text-[11px] text-[var(--text-secondary)]">
+                                    <FileText size={10} />
+                                    <span>{acao.documentos.length} documento(s) anexado(s)</span>
+                                    <span className="text-[var(--text-muted)]">
+                                      ({acao.documentos.map(d => d.nomeOriginal).join(", ")})
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => deleteAcao(a.id, acao.id)}
+                                disabled={acaoDeletingId === acao.id}
+                                className="text-[var(--text-muted)] hover:text-red-500 transition-colors shrink-0 disabled:opacity-40"
+                                title="Remover ação"
+                              >
+                                {acaoDeletingId === acao.id ? (
+                                  <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Trash2 size={12} />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => openAcaoModal(a.id)}
+                          className="flex items-center gap-1.5 text-xs text-[var(--accent-primary)] hover:opacity-80 transition-opacity mt-1 font-medium"
+                        >
+                          <Plus size={12} />
+                          Registrar nova ação
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </motion.div>
           ))}
         </div>
@@ -394,6 +592,7 @@ export default function AtividadesPage() {
         </div>
       )}
 
+      {/* Atividade modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTarget ? "Editar Atividade" : "Nova Atividade"} size="lg">
         <form onSubmit={handleSubmit} className="p-6 space-y-4" style={{ marginLeft: '5px', marginRight: '5px' }}>
           <Select
@@ -448,6 +647,65 @@ export default function AtividadesPage() {
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" type="button" onClick={() => setModalOpen(false)}>Cancelar</Button>
             <Button type="submit" loading={submitting}>{editTarget ? "Salvar Alterações" : "Registrar Atividade"}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Ação modal */}
+      <Modal
+        open={acaoModalOpen}
+        onClose={() => setAcaoModalOpen(false)}
+        title="Registrar Ação Realizada"
+        size="lg"
+      >
+        <form onSubmit={handleAcaoSubmit} className="p-6 space-y-4">
+          <Input
+            label="Data da Ocorrência"
+            type="date"
+            value={acaoForm.dataOcorrido}
+            onChange={(e) => setAcaoForm(f => ({ ...f, dataOcorrido: e.target.value }))}
+            required
+          />
+          <Textarea
+            label="Descrição da Ação"
+            value={acaoForm.descricao}
+            onChange={(e) => setAcaoForm(f => ({ ...f, descricao: e.target.value }))}
+            rows={6}
+            placeholder="Descreva detalhadamente a ação realizada (reunião, coleta de dados, visita técnica, etc.)..."
+            required
+          />
+          <div>
+            <label className="text-sm font-medium text-[var(--text-secondary)] block mb-2">
+              Documentos e Imagens Comprobatórios
+            </label>
+            <p className="text-xs text-[var(--text-muted)] mb-2">
+              Anexe PDFs, imagens (JPG, PNG) ou outros documentos. Você pode colar imagens diretamente (Ctrl+V).
+            </p>
+            <FileUpload
+              onUpload={(files) => setAcaoFiles(f => [...f, ...files])}
+              maxFiles={20}
+            />
+            {acaoFiles.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {acaoFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-1.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg px-2 py-1 text-xs">
+                    <FileText size={10} className="text-[var(--accent-primary)]" />
+                    <span className="text-[var(--text-secondary)] truncate max-w-[150px]">{f.nomeOriginal}</span>
+                    <button
+                      type="button"
+                      onClick={() => setAcaoFiles(prev => prev.filter((_, j) => j !== i))}
+                      className="text-[var(--text-muted)] hover:text-red-500 ml-1"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" type="button" onClick={() => setAcaoModalOpen(false)}>Cancelar</Button>
+            <Button type="submit" loading={acaoSubmitting} icon={<Activity size={14} />}>
+              Registrar Ação
+            </Button>
           </div>
         </form>
       </Modal>

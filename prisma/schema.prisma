@@ -159,6 +159,7 @@ model Atividade {
   usuario    Usuario              @relation(fields: [usuarioId], references: [id])
   meta       Meta?                @relation(fields: [metaId], references: [id])
   documentos AtividadeDocumento[]
+  acoes      AcaoAtividade[]
 
   @@map("atividades")
 }
@@ -177,6 +178,36 @@ model AtividadeDocumento {
   atividade Atividade @relation(fields: [atividadeId], references: [id], onDelete: Cascade)
 
   @@map("atividade_documentos")
+}
+
+model AcaoAtividade {
+  id           BigInt   @id @default(autoincrement())
+  atividadeId  BigInt   @map("atividade_id")
+  descricao    String   @db.LongText
+  dataOcorrido DateTime @map("data_ocorrido") @db.Date
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  atividade  Atividade      @relation(fields: [atividadeId], references: [id], onDelete: Cascade)
+  documentos AcaoDocumento[]
+
+  @@map("acoes_atividade")
+}
+
+model AcaoDocumento {
+  id           BigInt          @id @default(autoincrement())
+  acaoId       BigInt          @map("acao_id")
+  nomeOriginal String          @map("nome_original") @db.VarChar(255)
+  nomeArquivo  String          @map("nome_arquivo") @db.VarChar(255)
+  caminho      String          @db.VarChar(512)
+  mimeType     String          @map("mime_type") @db.VarChar(100)
+  tamanhoBytes Int             @map("tamanho_bytes")
+  origem       OrigemDocumento @default(UPLOAD)
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  acao AcaoAtividade @relation(fields: [acaoId], references: [id], onDelete: Cascade)
+
+  @@map("acao_documentos")
 }
 
 model PasswordResetToken {

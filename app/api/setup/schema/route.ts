@@ -178,6 +178,30 @@ const CREATE_STATEMENTS = [
   `ALTER TABLE projeto_membros ADD COLUMN resultados_esperados TEXT NULL`,
   `ALTER TABLE projeto_membros ADD COLUMN cronograma TEXT NULL`,
   `ALTER TABLE atividades ADD COLUMN meta_id BIGINT NULL`,
+  `ALTER TABLE atividades ADD COLUMN concluida TINYINT(1) NOT NULL DEFAULT 0`,
+
+  // Novas tabelas: acoes_atividade e acao_documentos
+  `CREATE TABLE IF NOT EXISTS acoes_atividade (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    atividade_id BIGINT NOT NULL,
+    descricao LONGTEXT NOT NULL,
+    data_ocorrido DATE NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS acao_documentos (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    acao_id BIGINT NOT NULL,
+    nome_original VARCHAR(255) NOT NULL,
+    nome_arquivo VARCHAR(255) NOT NULL,
+    caminho VARCHAR(512) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    tamanho_bytes INT NOT NULL,
+    origem ENUM('UPLOAD','PASTE') NOT NULL DEFAULT 'UPLOAD',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
   // Foreign keys — duplicatas ignoradas pelo catch (código 1826).
   `ALTER TABLE usuarios ADD CONSTRAINT fk_usuarios_supervisor FOREIGN KEY (supervisor_id) REFERENCES usuarios(id)`,
@@ -191,6 +215,8 @@ const CREATE_STATEMENTS = [
   `ALTER TABLE atividades ADD CONSTRAINT fk_atividades_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
   `ALTER TABLE atividades ADD CONSTRAINT fk_atividades_meta FOREIGN KEY (meta_id) REFERENCES metas(id)`,
   `ALTER TABLE atividade_documentos ADD CONSTRAINT fk_ad_atividade FOREIGN KEY (atividade_id) REFERENCES atividades(id) ON DELETE CASCADE`,
+  `ALTER TABLE acoes_atividade ADD CONSTRAINT fk_acoes_atividade FOREIGN KEY (atividade_id) REFERENCES atividades(id) ON DELETE CASCADE`,
+  `ALTER TABLE acao_documentos ADD CONSTRAINT fk_acao_documentos_acao FOREIGN KEY (acao_id) REFERENCES acoes_atividade(id) ON DELETE CASCADE`,
   `ALTER TABLE password_reset_tokens ADD CONSTRAINT fk_prt_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
   `ALTER TABLE refresh_tokens ADD CONSTRAINT fk_rt_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
   `ALTER TABLE audit_log ADD CONSTRAINT fk_al_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,

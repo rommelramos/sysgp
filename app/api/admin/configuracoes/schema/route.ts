@@ -132,6 +132,29 @@ const CREATE_STATEMENTS = [
     PRIMARY KEY (id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+  `CREATE TABLE IF NOT EXISTS acoes_atividade (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    atividade_id BIGINT NOT NULL,
+    descricao LONGTEXT NOT NULL,
+    data_ocorrido DATE NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS acao_documentos (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    acao_id BIGINT NOT NULL,
+    nome_original VARCHAR(255) NOT NULL,
+    nome_arquivo VARCHAR(255) NOT NULL,
+    caminho VARCHAR(512) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    tamanho_bytes INT NOT NULL,
+    origem ENUM('UPLOAD','PASTE') NOT NULL DEFAULT 'UPLOAD',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
   `CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id BIGINT NOT NULL AUTO_INCREMENT,
     usuario_id BIGINT NOT NULL,
@@ -214,6 +237,10 @@ const CREATE_STATEMENTS = [
     FOREIGN KEY (meta_id) REFERENCES metas(id)`,
   `ALTER TABLE atividade_documentos ADD CONSTRAINT fk_ad_atividade
     FOREIGN KEY (atividade_id) REFERENCES atividades(id) ON DELETE CASCADE`,
+  `ALTER TABLE acoes_atividade ADD CONSTRAINT fk_acoes_atividade
+    FOREIGN KEY (atividade_id) REFERENCES atividades(id) ON DELETE CASCADE`,
+  `ALTER TABLE acao_documentos ADD CONSTRAINT fk_acao_documentos_acao
+    FOREIGN KEY (acao_id) REFERENCES acoes_atividade(id) ON DELETE CASCADE`,
   `ALTER TABLE password_reset_tokens ADD CONSTRAINT fk_prt_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)`,
   `ALTER TABLE refresh_tokens ADD CONSTRAINT fk_rt_usuario
