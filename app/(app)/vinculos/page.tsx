@@ -18,9 +18,11 @@ interface Meta {
 }
 
 interface CronogramaItem {
+  id?: string;          // presente em atividades já salvas
   nome: string;
   dataInicio: string;
   dataFim: string;
+  concluida: boolean;
 }
 
 interface AtividadeSimples {
@@ -28,6 +30,7 @@ interface AtividadeSimples {
   titulo: string;
   dataInicio: string | null;
   dataFim: string | null;
+  concluida: boolean;
 }
 
 interface Vinculo {
@@ -99,7 +102,7 @@ function fuzzyMatchId<T extends { id: string }>(
 }
 
 function atividadeParaCronograma(a: AtividadeSimples): CronogramaItem {
-  return { nome: a.titulo, dataInicio: a.dataInicio || "", dataFim: a.dataFim || "" };
+  return { id: a.id, nome: a.titulo, dataInicio: a.dataInicio || "", dataFim: a.dataFim || "", concluida: a.concluida };
 }
 
 export default function VinculosPage() {
@@ -111,7 +114,7 @@ export default function VinculosPage() {
   const [editTarget, setEditTarget] = useState<Vinculo | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Vinculo | null>(null);
   const [form, setForm] = useState(blankForm);
-  const [metas, setMetas] = useState<{ descricao: string }[]>([]);
+  const [metas, setMetas] = useState<{ id?: string; descricao: string }[]>([]);
   const [cronogramaItems, setCronogramaItems] = useState<CronogramaItem[]>([]);
   const [projetos, setProjetos] = useState<Array<{ id: string; titulo: string }>>([]);
   const [projetosIds, setProjetosIds] = useState<Set<string>>(new Set());
@@ -190,7 +193,7 @@ export default function VinculosPage() {
       resultadosEsperados: v.resultadosEsperados || "",
       statusVinculo: v.statusVinculo,
     });
-    setMetas(v.metas.map((m) => ({ descricao: m.descricao })));
+    setMetas(v.metas.map((m) => ({ id: m.id, descricao: m.descricao })));
     setCronogramaItems((v.atividades ?? []).map(atividadeParaCronograma));
     setModalOpen(true);
   }
@@ -275,7 +278,7 @@ export default function VinculosPage() {
         dataFimBolsa: form.dataFimBolsa || null,
         resultadosEsperados: form.resultadosEsperados || null,
         cronograma: validItems,
-        metas: metas.filter((m) => m.descricao.trim()),
+        metas: metas.filter((m) => m.descricao.trim()).map((m, i) => ({ id: m.id, descricao: m.descricao, ordem: i + 1 })),
       };
 
       const res = editTarget
@@ -341,7 +344,7 @@ export default function VinculosPage() {
     setMetas((m) => m.map((meta, idx) => idx === i ? { ...meta, descricao: val } : meta));
   }
 
-  function addCronogramaItem() { setCronogramaItems((c) => [...c, { nome: "", dataInicio: "", dataFim: "" }]); }
+  function addCronogramaItem() { setCronogramaItems((c) => [...c, { nome: "", dataInicio: "", dataFim: "", concluida: false }]); }
   function removeCronogramaItem(i: number) { setCronogramaItems((c) => c.filter((_, idx) => idx !== i)); }
   function updateCronogramaItem(i: number, field: keyof CronogramaItem, val: string) {
     setCronogramaItems((c) => c.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
@@ -696,17 +699,30 @@ export default function VinculosPage() {
             ) : (
               <div className="space-y-2">
                 {cronogramaItems.map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-[var(--bg-elevated)] rounded-xl p-3 border border-[var(--border)]">
-                    <span className="shrink-0 w-6 h-6 rounded-full bg-[var(--accent-primary)] text-white text-[10px] font-bold flex items-center justify-center">
-                      {i + 1}
-                    </span>
-                    <input
-                      value={item.nome}
-                      onChange={(e) => updateCronogramaItem(i, "nome", e.target.value)}
-                      placeholder={`Nome da atividade ${i + 1}...`}
-                      className="flex-1 min-w-0 bg-white border border-[var(--border)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.15)] transition-all"
-                    />
-                    <div className="flex items-center gap-1.5 shrink-0">
+                  <div key={i} className={`rounded-xl p-3 border transition-colors ${item.concluida ? "bg-emerald-50/60 border-emerald-200" : "bg-[var(--bg-elevated)] border-[var(--border)]"}`}>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        title={item.concluida ? "Marcar como em andamento" : "Marcar como concluída"}
+                        onClick={() => setCronogramaItems(prev => prev.map((c, idx) => idx === i ? { ...c, concluida: !c.concluida } : c))}
+                        className="shrink-0"
+                      >
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${item.concluida ? "bg-emerald-500 text-white" : "bg-[var(--accent-primary)] text-white"}`}>
+                          {item.concluida ? "✓" : i + 1}
+                        </span>
+                      </button>
+                      <input
+                        value={item.nome}
+                        onChange={(e) => updateCronogramaItem(i, "nome", e.target.value)}
+                        placeholder={`Nome da atividade ${i + 1}...`}
+                        className={`flex-1 min-w-0 bg-white border border-[var(--border)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.15)] transition-all ${item.concluida ? "line-through text-[var(--text-muted)]" : ""}`}
+                      />
+                      <button type="button" onClick={() => removeCronogramaItem(i)}
+                        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-2 pl-8">
                       <span className="text-xs text-[var(--text-muted)] font-medium">De</span>
                       <input type="date" value={item.dataInicio}
                         onChange={(e) => updateCronogramaItem(i, "dataInicio", e.target.value)}
@@ -716,10 +732,6 @@ export default function VinculosPage() {
                         onChange={(e) => updateCronogramaItem(i, "dataFim", e.target.value)}
                         className="bg-white border border-[var(--border)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[rgba(37,99,235,0.15)] transition-all" />
                     </div>
-                    <button type="button" onClick={() => removeCronogramaItem(i)}
-                      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 transition-colors">
-                      <Trash2 size={13} />
-                    </button>
                   </div>
                 ))}
               </div>

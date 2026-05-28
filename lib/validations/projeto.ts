@@ -28,12 +28,14 @@ export const membroProjetoSchema = z.object({
   cargaHoraria: z.number().int().positive().optional().nullable(),
   resultadosEsperados: z.string().optional().nullable(),
   cronograma: z.array(z.object({
+    id: z.string().optional().nullable(),
     nome: z.string(),
     dataInicio: z.string().optional().nullable(),
     dataFim: z.string().optional().nullable(),
+    concluida: z.boolean().optional(),
   })).optional().nullable(),
   statusVinculo: z.enum(["ATIVO", "ENCERRADO", "SUSPENSO"]).default("ATIVO"),
-  metas: z.array(z.object({ descricao: z.string().min(1), ordem: z.number().int().default(1) })).optional(),
+  metas: z.array(z.object({ id: z.string().optional(), descricao: z.string().min(1), ordem: z.number().int().default(1) })).optional(),
 });
 
 export const metaSchema = z.object({

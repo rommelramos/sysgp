@@ -48,13 +48,13 @@ export async function GET(req: NextRequest) {
 
   // Fetch activities for all bindings in one query
   type VRow = { projetoId: bigint; usuarioId: bigint };
-  type ARow = { id: bigint; titulo: string; dataInicio: Date | null; dataFim: Date | null; projetoId: bigint; usuarioId: bigint };
+  type ARow = { id: bigint; titulo: string; dataInicio: Date | null; dataFim: Date | null; concluida: boolean; projetoId: bigint; usuarioId: bigint };
   const projetoIdSet = new Set<bigint>(vinculos.map((v: VRow) => v.projetoId));
   const usuarioIdSet = new Set<bigint>(vinculos.map((v: VRow) => v.usuarioId));
   const todasAtividades: ARow[] = projetoIdSet.size > 0
     ? await prisma.atividade.findMany({
         where: { projetoId: { in: [...projetoIdSet] }, usuarioId: { in: [...usuarioIdSet] } },
-        select: { id: true, titulo: true, dataInicio: true, dataFim: true, projetoId: true, usuarioId: true },
+        select: { id: true, titulo: true, dataInicio: true, dataFim: true, concluida: true, projetoId: true, usuarioId: true },
         orderBy: [{ dataInicio: "asc" }, { createdAt: "asc" }],
       })
     : [];

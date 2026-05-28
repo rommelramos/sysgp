@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const atividades = await prisma.atividade.findMany({
     where: { projetoId: vinculo.projetoId, usuarioId: vinculo.usuarioId },
-    select: { id: true, titulo: true, dataInicio: true, dataFim: true },
+    select: { id: true, titulo: true, dataInicio: true, dataFim: true, concluida: true },
     orderBy: [{ dataInicio: "asc" }, { createdAt: "asc" }],
   });
 
@@ -88,36 +88,63 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     },
   });
 
+  // Metas: update-in-place — delete removed (clearing FK refs first), update existing, create new
   if (d.metas !== undefined) {
-    await prisma.meta.deleteMany({ where: { projetoMembroId: vinculoId } });
-    if (d.metas.length > 0) {
-      await prisma.meta.createMany({
-        data: d.metas.map((m, i) => ({
-          projetoMembroId: vinculoId,
-          descricao: m.descricao,
-          ordem: i + 1,
-        })),
-      });
+    const idsMantidos = (d.metas ?? []).filter((m) => m.id).map((m) => BigInt(m.id!));
+
+    const metasRemovidas = await prisma.meta.findMany({
+      where: { projetoMembroId: vinculoId, ...(idsMantidos.length > 0 ? { NOT: { id: { in: idsMantidos } } } : {}) },
+      select: { id: true },
+    });
+    if (metasRemovidas.length > 0) {
+      const idsRemovidas = metasRemovidas.map((m: { id: bigint }) => m.id);
+      await prisma.atividade.updateMany({ where: { metaId: { in: idsRemovidas } }, data: { metaId: null } });
+      await prisma.meta.deleteMany({ where: { id: { in: idsRemovidas } } });
+    }
+
+    for (let i = 0; i < (d.metas ?? []).length; i++) {
+      const m = d.metas![i];
+      if (m.id) {
+        await prisma.meta.update({ where: { id: BigInt(m.id) }, data: { descricao: m.descricao, ordem: i + 1 } });
+      } else {
+        await prisma.meta.create({ data: { projetoMembroId: vinculoId, descricao: m.descricao, ordem: i + 1 } });
+      }
     }
   }
 
-  // Sync activities: delete all member activities in this project and recreate from cronograma
+  // Atividades: update-in-place — delete removed, update existing (preserving concluida), create new
   if (d.cronograma !== undefined) {
+    const idsEnviados = (d.cronograma ?? []).filter((c) => c.id).map((c) => BigInt(c.id!));
+
     await prisma.atividade.deleteMany({
-      where: { projetoId: vinculoExist.projetoId, usuarioId: vinculoExist.usuarioId },
+      where: {
+        projetoId: vinculoExist.projetoId,
+        usuarioId: vinculoExist.usuarioId,
+        ...(idsEnviados.length > 0 ? { NOT: { id: { in: idsEnviados } } } : {}),
+      },
     });
-    if (d.cronograma && d.cronograma.length > 0) {
-      const atividadesData = d.cronograma
-        .filter((c) => c.nome?.trim())
-        .map((c) => ({
-          projetoId: vinculoExist.projetoId,
-          usuarioId: vinculoExist.usuarioId,
-          titulo: c.nome,
-          dataInicio: c.dataInicio ? new Date(c.dataInicio) : null,
-          dataFim: c.dataFim ? new Date(c.dataFim) : null,
-        }));
-      if (atividadesData.length > 0) {
-        await prisma.atividade.createMany({ data: atividadesData });
+
+    for (const c of (d.cronograma ?? []).filter((c) => c.nome?.trim())) {
+      if (c.id) {
+        await prisma.atividade.update({
+          where: { id: BigInt(c.id) },
+          data: {
+            titulo: c.nome,
+            dataInicio: c.dataInicio ? new Date(c.dataInicio) : null,
+            dataFim: c.dataFim ? new Date(c.dataFim) : null,
+            ...(c.concluida !== undefined && { concluida: c.concluida }),
+          },
+        });
+      } else {
+        await prisma.atividade.create({
+          data: {
+            projetoId: vinculoExist.projetoId,
+            usuarioId: vinculoExist.usuarioId,
+            titulo: c.nome,
+            dataInicio: c.dataInicio ? new Date(c.dataInicio) : null,
+            dataFim: c.dataFim ? new Date(c.dataFim) : null,
+          },
+        });
       }
     }
   }
@@ -141,7 +168,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const atividades = await prisma.atividade.findMany({
     where: { projetoId: vinculoExist.projetoId, usuarioId: vinculoExist.usuarioId },
-    select: { id: true, titulo: true, dataInicio: true, dataFim: true },
+    select: { id: true, titulo: true, dataInicio: true, dataFim: true, concluida: true },
     orderBy: [{ dataInicio: "asc" }, { createdAt: "asc" }],
   });
 
