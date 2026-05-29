@@ -304,6 +304,9 @@ export default function AtividadesPage() {
     setAcaoForm({ descricao: "", dataOcorrido: new Date().toISOString().slice(0, 10) });
     setAcaoFiles([]);
     setAcaoModalOpen(true);
+    // Garante que o painel de ações estará expandido após salvar
+    if (acoesPorAtividade[atividadeId] === undefined) loadAcoes(atividadeId);
+    setExpandedAcoes(prev => new Set([...prev, atividadeId]));
   }
 
   async function handleAcaoSubmit(e: React.FormEvent) {
@@ -473,6 +476,14 @@ export default function AtividadesPage() {
                   <Button variant="ghost" size="sm" icon={<Pencil size={13} />} onClick={() => openEdit(a)}>
                     Editar
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<Activity size={13} />}
+                    onClick={() => openAcaoModal(a.id)}
+                    title="Registrar ação realizada"
+                    className="text-[var(--accent-primary)] hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                  />
                   {podeExcluir && (
                     deletingId === a.id ? (
                       <div className="flex items-center gap-1">
