@@ -164,16 +164,13 @@ function mergeAtividades(atividades: AtividadeRow[]): AtividadeMesclada[] {
   return [...map.values()];
 }
 
-// ── Embed image as base64 data URI (best-effort) ──────────────────────
+// ── Read file from disk and return base64 string (best-effort) ────────
 
-function imagemEmbedded(doc: DocRow): string {
-  const isImage = doc.mimeType.startsWith("image/");
-  if (!isImage) return "";
+function lerArquivoBase64(doc: DocRow): string {
   try {
     const filePath = join(process.cwd(), doc.caminho.startsWith("/") ? doc.caminho.slice(1) : doc.caminho);
     if (!existsSync(filePath)) return "";
-    const base64 = readFileSync(filePath).toString("base64");
-    return `data:${doc.mimeType};base64,${base64}`;
+    return readFileSync(filePath).toString("base64");
   } catch {
     return "";
   }
@@ -185,19 +182,38 @@ function renderEvidencias(documentos: DocRow[]): string {
   if (documentos.length === 0) return "";
 
   const itens = documentos.map((doc) => {
-    const dataUri = imagemEmbedded(doc);
-    if (dataUri) {
+    const isImage = doc.mimeType.startsWith("image/");
+    const isPdf   = doc.mimeType === "application/pdf";
+    const base64  = lerArquivoBase64(doc);
+
+    // ── Image ──────────────────────────────────────────────────────────
+    if (base64 && isImage) {
       return `
         <div class="evidencia">
           <p class="ev-label">📷 Imagem — ${doc.nomeOriginal}</p>
-          <img src="${dataUri}"
+          <img src="data:${doc.mimeType};base64,${base64}"
                alt="${doc.nomeOriginal}"
                style="max-width:100%; max-height:480px; display:block; border:1px solid #E5E7EB; border-radius:4px; margin-top:4px;" />
         </div>`;
     }
-    const isImage = doc.mimeType.startsWith("image/");
-    const isPdf = doc.mimeType === "application/pdf";
-    const icon = isImage ? "🖼️" : isPdf ? "📄" : "📎";
+
+    // ── PDF — embedded iframe (hidden on print, note shown instead) ────
+    if (base64 && isPdf) {
+      return `
+        <div class="evidencia">
+          <p class="ev-label">📄 Documento PDF — ${doc.nomeOriginal}</p>
+          <iframe src="data:application/pdf;base64,${base64}"
+                  class="pdf-embed"
+                  style="width:100%; height:540px; border:1px solid #E5E7EB; border-radius:4px; margin-top:4px; display:block;"
+                  title="${doc.nomeOriginal}"></iframe>
+          <p class="pdf-print-note" style="display:none; font-size:10px; color:#6B7280; font-style:italic; margin:4px 0 0;">
+            [Documento PDF — visualize a versão digital do relatório para ver o arquivo completo]
+          </p>
+        </div>`;
+    }
+
+    // ── Fallback: file not on disk (Vercel) or unsupported type ────────
+    const icon  = isImage ? "🖼️" : isPdf ? "📄" : "📎";
     const label = isImage ? "Imagem" : isPdf ? "Documento PDF" : "Anexo";
     return `
       <div class="evidencia">
@@ -400,6 +416,9 @@ function gerarHTMLRelatorio({
       .print-strip { display: none !important; }
       .page { padding: 16px 24px; max-width: 100%; }
       body { font-size: 10.5px; }
+      /* Hide PDF iframes on print — browser cannot print iframes reliably */
+      .pdf-embed { display: none !important; }
+      .pdf-print-note { display: block !important; }
     }
   </style>
 </head>
