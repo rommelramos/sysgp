@@ -577,7 +577,9 @@ export default function AtividadesPage() {
                     onClick={() => openAcaoModal(a.id)}
                     title="Registrar ação realizada"
                     className="text-[var(--accent-primary)] hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                  />
+                  >
+                    + Ação
+                  </Button>
                   {podeExcluir && (
                     deletingId === a.id ? (
                       <div className="flex items-center gap-1">
@@ -637,9 +639,9 @@ export default function AtividadesPage() {
                         {(acoesPorAtividade[a.id] || []).map((acao) => (
                           <div
                             key={acao.id}
-                            className="bg-[var(--bg-elevated)] border border-[var(--border)]/50 rounded-lg p-3"
+                            className="bg-[var(--bg-elevated)] border border-[var(--border)]/50 rounded-lg p-3 pr-2"
                           >
-                            <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start justify-between gap-3">
                               <div className="flex-1 min-w-0">
                                 <p className="text-[11px] font-semibold text-[var(--accent-primary)] mb-1">
                                   {formatarData(acao.dataOcorrido)}
@@ -657,24 +659,24 @@ export default function AtividadesPage() {
                                   </div>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1 shrink-0">
+                              <div className="flex items-center gap-2 shrink-0 mr-1">
                                 <button
                                   onClick={() => openEditAcao(a.id, acao)}
-                                  className="text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors"
+                                  className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--accent-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
                                   title="Editar ação"
                                 >
-                                  <Pencil size={12} />
+                                  <Pencil size={13} />
                                 </button>
                                 <button
                                   onClick={() => deleteAcao(a.id, acao.id)}
                                   disabled={acaoDeletingId === acao.id}
-                                  className="text-[var(--text-muted)] hover:text-red-500 transition-colors disabled:opacity-40"
+                                  className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-40"
                                   title="Remover ação"
                                 >
                                   {acaoDeletingId === acao.id ? (
-                                    <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin" />
+                                    <div className="w-3.5 h-3.5 border border-red-400 border-t-transparent rounded-full animate-spin" />
                                   ) : (
-                                    <Trash2 size={12} />
+                                    <Trash2 size={13} />
                                   )}
                                 </button>
                               </div>
