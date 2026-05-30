@@ -521,7 +521,7 @@ export default function AtividadesPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.03 }}
-              className={`border rounded-xl p-4 hover:shadow-[0_0_20px_rgba(37,99,235,0.1)] transition-all ${getRowClass(a)}`}
+              className={`border rounded-none p-4 hover:shadow-[0_0_20px_rgba(37,99,235,0.1)] transition-all ${getRowClass(a)}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0" style={{ marginLeft: '5px' }}>
@@ -639,7 +639,7 @@ export default function AtividadesPage() {
                         {(acoesPorAtividade[a.id] || []).map((acao) => (
                           <div
                             key={acao.id}
-                            className="bg-[var(--bg-elevated)] border border-[var(--border)]/50 rounded-lg p-3 pr-2"
+                            className="bg-[var(--bg-elevated)] border border-[var(--border)]/50 rounded-none p-3 pr-2"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex-1 min-w-0">
@@ -659,24 +659,28 @@ export default function AtividadesPage() {
                                   </div>
                                 )}
                               </div>
-                              <div className="flex items-center gap-2 shrink-0 mr-1">
+                              <div className="flex items-center gap-2 shrink-0 mr-2">
                                 <button
                                   onClick={() => openEditAcao(a.id, acao)}
-                                  className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--accent-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
+                                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[var(--text-muted)] hover:text-[var(--accent-primary)] hover:bg-[var(--bg-primary)] transition-colors text-xs"
                                   title="Editar ação"
                                 >
-                                  <Pencil size={13} />
+                                  <Pencil size={12} />
+                                  <span>Editar</span>
                                 </button>
                                 <button
                                   onClick={() => deleteAcao(a.id, acao.id)}
                                   disabled={acaoDeletingId === acao.id}
-                                  className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-40"
+                                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-40 text-xs"
                                   title="Remover ação"
                                 >
                                   {acaoDeletingId === acao.id ? (
-                                    <div className="w-3.5 h-3.5 border border-red-400 border-t-transparent rounded-full animate-spin" />
+                                    <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin" />
                                   ) : (
-                                    <Trash2 size={13} />
+                                    <>
+                                      <Trash2 size={12} />
+                                      <span>Remover</span>
+                                    </>
                                   )}
                                 </button>
                               </div>
