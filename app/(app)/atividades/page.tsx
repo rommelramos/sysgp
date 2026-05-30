@@ -581,20 +581,15 @@ export default function AtividadesPage() {
                     + Ação
                   </Button>
                   {podeExcluir && (
-                    deletingId === a.id ? (
-                      <div className="flex items-center gap-1">
-                        <Button variant="danger" size="sm" onClick={() => confirmarDelete(a.id)}>Confirmar</Button>
-                        <Button variant="ghost" size="sm" onClick={() => setDeletingId(null)}>Cancelar</Button>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon={<Trash2 size={13} />}
-                        onClick={() => setDeletingId(a.id)}
-                        className="text-[var(--text-muted)] hover:text-red-500"
-                      />
-                    )
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Trash2 size={13} />}
+                      onClick={() => setDeletingId(a.id)}
+                      className="text-[var(--text-muted)] hover:text-red-500"
+                    >
+                      Remover
+                    </Button>
                   )}
                 </div>
               </div>
@@ -868,6 +863,45 @@ export default function AtividadesPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Confirmar exclusão de atividade */}
+      <Modal
+        open={!!deletingId}
+        onClose={() => setDeletingId(null)}
+        title="Remover Atividade"
+        size="sm"
+      >
+        <div className="p-6 space-y-5">
+          <div className="flex items-start gap-3">
+            <div className="shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center">
+              <Trash2 size={18} className="text-red-500" />
+            </div>
+            <div>
+              <p className="text-sm text-[var(--text-primary)] font-medium">
+                Tem certeza que deseja remover esta atividade?
+              </p>
+              {deletingId && atividades.find(a => a.id === deletingId) && (
+                <p className="text-xs text-[var(--text-muted)] mt-1">
+                  &ldquo;{atividades.find(a => a.id === deletingId)!.titulo}&rdquo;
+                </p>
+              )}
+              <p className="text-xs text-[var(--text-secondary)] mt-2">
+                Esta ação não pode ser desfeita. Todas as ações e documentos vinculados serão removidos.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setDeletingId(null)}>Cancelar</Button>
+            <Button
+              variant="danger"
+              icon={<Trash2 size={14} />}
+              onClick={() => deletingId && confirmarDelete(deletingId)}
+            >
+              Remover
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Nova ação modal */}
