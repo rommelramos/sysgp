@@ -151,6 +151,7 @@ const CREATE_STATEMENTS = [
     mime_type VARCHAR(100) NOT NULL,
     tamanho_bytes INT NOT NULL,
     origem ENUM('UPLOAD','PASTE') NOT NULL DEFAULT 'UPLOAD',
+    conteudo LONGBLOB NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
@@ -213,6 +214,7 @@ const CREATE_STATEMENTS = [
   `ALTER TABLE projeto_membros ADD COLUMN cronograma TEXT NULL`,
   `ALTER TABLE atividades ADD COLUMN meta_id BIGINT NULL`,
   `ALTER TABLE atividades ADD COLUMN concluida TINYINT(1) NOT NULL DEFAULT 0`,
+  `ALTER TABLE acao_documentos ADD COLUMN IF NOT EXISTS conteudo LONGBLOB NULL`,
 
   // Foreign keys — duplicatas ignoradas pelo catch (código 1826).
   `ALTER TABLE usuarios ADD CONSTRAINT fk_usuarios_supervisor

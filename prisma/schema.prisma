@@ -203,6 +203,7 @@ model AcaoDocumento {
   mimeType     String          @map("mime_type") @db.VarChar(100)
   tamanhoBytes Int             @map("tamanho_bytes")
   origem       OrigemDocumento @default(UPLOAD)
+  conteudo     Bytes?          @db.LongBlob
   createdAt    DateTime        @default(now()) @map("created_at")
 
   acao AcaoAtividade @relation(fields: [acaoId], references: [id], onDelete: Cascade)

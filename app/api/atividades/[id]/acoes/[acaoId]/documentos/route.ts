@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { bigintToString } from "@/lib/utils";
+
+/** Read file bytes from the uploads directory (best-effort). */
+function lerConteudo(caminho: string): Buffer | null {
+  try {
+    const filePath = join(process.cwd(), caminho.startsWith("/") ? caminho.slice(1) : caminho);
+    if (!existsSync(filePath)) return null;
+    return readFileSync(filePath);
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string; acaoId: string }> }) {
   const session = await getSession();
@@ -21,19 +34,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let body: { documentos: Array<{ nomeOriginal: string; nomeArquivo: string; caminho: string; mimeType: string; tamanhoBytes: number; origem: "UPLOAD" | "PASTE" }> };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Requisição inválida" }, { status: 400 }); }
 
-  const docs = await prisma.acaoDocumento.createMany({
-    data: body.documentos.map((d) => ({
-      acaoId: BigInt(acaoId),
-      nomeOriginal: d.nomeOriginal,
-      nomeArquivo: d.nomeArquivo,
-      caminho: d.caminho,
-      mimeType: d.mimeType,
-      tamanhoBytes: d.tamanhoBytes,
-      origem: d.origem,
-    })),
-  });
+  // Create each document individually to store binary content from disk
+  const created = await Promise.all(
+    body.documentos.map((d) => {
+      const conteudo = lerConteudo(d.caminho);
+      return prisma.acaoDocumento.create({
+        data: {
+          acaoId: BigInt(acaoId),
+          nomeOriginal: d.nomeOriginal,
+          nomeArquivo: d.nomeArquivo,
+          caminho: d.caminho,
+          mimeType: d.mimeType,
+          tamanhoBytes: d.tamanhoBytes,
+          origem: d.origem,
+          ...(conteudo ? { conteudo } : {}),
+        },
+        select: {
+          id: true, nomeOriginal: true, nomeArquivo: true,
+          caminho: true, mimeType: true, tamanhoBytes: true, origem: true, createdAt: true,
+        },
+      });
+    })
+  );
 
-  return NextResponse.json(bigintToString({ count: docs.count }), { status: 201 });
+  return NextResponse.json(bigintToString({ count: created.length, documentos: created }), { status: 201 });
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string; acaoId: string }> }) {

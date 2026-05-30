@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
         meta: { select: { descricao: true, ordem: true } },
         acoes: {
           include: {
-            documentos: { select: { nomeOriginal: true, mimeType: true, caminho: true } },
+            documentos: { select: { nomeOriginal: true, mimeType: true, caminho: true, conteudo: true } },
           },
           orderBy: { dataOcorrido: "asc" },
         },
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
 
 // ── Types ─────────────────────────────────────────────────────────────
 
-type DocRow = { nomeOriginal: string; mimeType: string; caminho: string };
+type DocRow = { nomeOriginal: string; mimeType: string; caminho: string; conteudo: Buffer | null };
 type AcaoRow = { dataOcorrido: Date; descricao: string; documentos: DocRow[] };
 type AtividadeRow = {
   titulo: string;
@@ -136,11 +136,14 @@ function mergeAtividades(atividades: AtividadeRow[]): AtividadeRow[] {
   return [...map.values()];
 }
 
-// ── Load file bytes from disk (best-effort) ───────────────────────────
+// ── Load file bytes — DB first, filesystem fallback ───────────────────
 
-function lerArquivo(caminho: string): Buffer | null {
+function lerArquivo(doc: { caminho: string; conteudo?: Buffer | null }): Buffer | null {
+  // Primary source: binary content stored in the database
+  if (doc.conteudo) return Buffer.isBuffer(doc.conteudo) ? doc.conteudo : Buffer.from(doc.conteudo);
+  // Fallback: read from disk (local/self-hosted deployments)
   try {
-    const filePath = join(process.cwd(), caminho.startsWith("/") ? caminho.slice(1) : caminho);
+    const filePath = join(process.cwd(), doc.caminho.startsWith("/") ? doc.caminho.slice(1) : doc.caminho);
     if (!existsSync(filePath)) return null;
     return readFileSync(filePath);
   } catch {
@@ -250,7 +253,7 @@ function drawRect(ctx: Ctx, x: number, w: number, h: number, fill: ReturnType<ty
 
 /** Embed an image (JPEG or PNG) in the PDF document */
 async function embedImage(ctx: Ctx, doc: DocRow): Promise<void> {
-  const bytes = lerArquivo(doc.caminho);
+  const bytes = lerArquivo(doc);
   if (!bytes) return;
   try {
     const img = doc.mimeType === "image/png"
@@ -395,7 +398,7 @@ async function gerarPDF({
   }
 
   // Collect PDF attachments to merge at the end
-  const pdfAttachmentsToMerge: Array<{ title: string; nomeOriginal: string; caminho: string }> = [];
+  const pdfAttachmentsToMerge: Array<{ title: string; nomeOriginal: string; caminho: string; conteudo: Buffer | null }> = [];
 
   for (let ai = 0; ai < atividades.length; ai++) {
     const a = atividades[ai];
@@ -486,7 +489,7 @@ async function gerarPDF({
               // PDF: show label inline; pages will be appended at the end
               ensure(ctx, 14);
               drawLine(ctx, `📄  ${doc.nomeOriginal}  [ver páginas em anexo]`, ML + 12, 8, ctx.regular, C_GRAY);
-              pdfAttachmentsToMerge.push({ title: `${a.titulo} — Ação ${acIdx + 1}`, nomeOriginal: doc.nomeOriginal, caminho: doc.caminho });
+              pdfAttachmentsToMerge.push({ title: `${a.titulo} — Ação ${acIdx + 1}`, nomeOriginal: doc.nomeOriginal, caminho: doc.caminho, conteudo: doc.conteudo });
               gap(ctx, 2);
             } else {
               ensure(ctx, 14);
@@ -514,7 +517,7 @@ async function gerarPDF({
   // ── Append PDF attachments ────────────────────────────────────────────
   if (pdfAttachmentsToMerge.length > 0) {
     for (const att of pdfAttachmentsToMerge) {
-      const bytes = lerArquivo(att.caminho);
+      const bytes = lerArquivo(att);
       if (!bytes) continue;
       try {
         const srcDoc = await PDFDocument.load(bytes);
