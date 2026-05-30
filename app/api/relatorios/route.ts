@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       include: { meta: { select: { descricao: true, ordem: true } } },
       orderBy: atividadeOrder,
     });
-    atividades = (rows as AtividadeRow[]).map((r) => ({ ...r, acoes: [] }));
+    atividades = (rows as unknown[]).map((r) => ({ ...(r as object), acoes: [] as AcaoRow[] })) as AtividadeRow[];
   }
 
   // ── Merge activities with the same title ────────────────────────────
