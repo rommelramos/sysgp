@@ -300,6 +300,122 @@ async function drawImageOnPage(
   }
 }
 
+// ── Cover page renderer ───────────────────────────────────────────────
+
+function drawCoverPage(
+  page: PDFPage,
+  projeto: { titulo: string; descricao: string | null; coordenadorNome: string; dataInicio: Date | null; dataFimPrevista: Date | null; status: string },
+  periodo: { inicio: string; fim: string },
+  regular: PDFFont,
+  bold: PDFFont,
+): void {
+  const emitidoEm = `Emitido em ${formatarData(new Date())}`;
+
+  // Full-width blue top band
+  page.drawRectangle({ x: 0, y: PH - 8, width: PW, height: 8, color: C_BLUE });
+
+  // SysGP + system name (left)
+  page.drawText("SysGP", { x: ML, y: PH - 42, size: 22, font: bold, color: C_BLUE });
+  page.drawText("Sistema Gerenciador de Projetos", { x: ML, y: PH - 64, size: 10, font: regular, color: C_GRAY });
+
+  // Report label (right)
+  const relW = bold.widthOfTextAtSize("RELATÓRIO DE ATIVIDADES", 11);
+  page.drawText("RELATÓRIO DE ATIVIDADES", { x: PW - MR - relW, y: PH - 40, size: 11, font: bold, color: C_DARK });
+  const emW = regular.widthOfTextAtSize(emitidoEm, 9);
+  page.drawText(emitidoEm, { x: PW - MR - emW, y: PH - 56, size: 9, font: regular, color: C_GRAY });
+
+  // Divider
+  page.drawLine({ start: { x: ML, y: PH - 76 }, end: { x: PW - MR, y: PH - 76 }, thickness: 1.2, color: C_BLUE });
+
+  // Project title (starts ~140pt from top)
+  let ty = 148;
+  for (const line of wrap(projeto.titulo, bold, 22, UW)) {
+    page.drawText(line, { x: ML, y: PH - ty - 22, size: 22, font: bold, color: C_DARK });
+    ty += 22 * 1.35;
+  }
+  ty += 8;
+
+  // Period
+  page.drawText(
+    sanitize(`Período do relatório: ${formatarData(periodo.inicio)} a ${formatarData(periodo.fim)}`),
+    { x: ML, y: PH - ty - 11, size: 11, font: regular, color: C_GRAY },
+  );
+  ty += 11 * 1.8;
+
+  // Info grid 2×2
+  const cw2 = UW / 2 - 4;
+  const ch2 = 54;
+  const coverCells: [string, string][] = [
+    ["Coordenador", projeto.coordenadorNome],
+    ["Status do Projeto", projeto.status.replace(/_/g, " ")],
+    ["Início do Projeto", formatarData(projeto.dataInicio)],
+    ["Término Previsto", formatarData(projeto.dataFimPrevista)],
+  ];
+  for (let i = 0; i < coverCells.length; i += 2) {
+    const [lbl0, val0] = coverCells[i];
+    const [lbl1, val1] = coverCells[i + 1];
+    const x0 = ML, x1 = ML + cw2 + 8;
+    const cellY = PH - ty - ch2;
+    page.drawRectangle({ x: x0, y: cellY, width: cw2, height: ch2, color: C_LBLUE, borderColor: C_BBLUE, borderWidth: 0.5 });
+    page.drawText(lbl0, { x: x0 + 10, y: cellY + ch2 - 16, size: 8, font: regular, color: C_GRAY });
+    page.drawText(sanitize(val0).slice(0, 36), { x: x0 + 10, y: cellY + 12, size: 12, font: bold, color: C_DARK });
+    page.drawRectangle({ x: x1, y: cellY, width: cw2, height: ch2, color: C_LBLUE, borderColor: C_BBLUE, borderWidth: 0.5 });
+    page.drawText(lbl1, { x: x1 + 10, y: cellY + ch2 - 16, size: 8, font: regular, color: C_GRAY });
+    page.drawText(sanitize(val1).slice(0, 36), { x: x1 + 10, y: cellY + 12, size: 12, font: bold, color: C_DARK });
+    ty += ch2 + 6;
+  }
+
+  // Full-width blue bottom band
+  page.drawRectangle({ x: 0, y: 0, width: PW, height: 38, color: C_BLUE });
+  const ftText = "Sistema Gerenciador de Projetos — SysGP";
+  const ftW = regular.widthOfTextAtSize(ftText, 9);
+  page.drawText(ftText, { x: (PW - ftW) / 2, y: 14, size: 9, font: regular, color: C_WHITE });
+}
+
+// ── Sumário (TOC) page renderer ───────────────────────────────────────
+
+function drawTocPage(
+  page: PDFPage,
+  entries: Array<{ title: string; page: number }>,
+  regular: PDFFont,
+  bold: PDFFont,
+): void {
+  // Compact header
+  page.drawRectangle({ x: ML, y: PH - MT, width: UW, height: 3, color: C_BLUE });
+  page.drawText("SysGP", { x: ML, y: PH - MT - 18, size: 10, font: bold, color: C_BLUE });
+  page.drawText("  —  Sistema Gerenciador de Projetos", {
+    x: ML + bold.widthOfTextAtSize("SysGP", 10),
+    y: PH - MT - 18, size: 8, font: regular, color: C_GRAY,
+  });
+  page.drawLine({ start: { x: ML, y: PH - MT - 26 }, end: { x: PW - MR, y: PH - MT - 26 }, thickness: 0.4, color: C_BBLUE });
+
+  // SUMÁRIO heading
+  let y = MT + 44;
+  page.drawText("SUMÁRIO", { x: ML, y: PH - y, size: 16, font: bold, color: C_BLUE });
+  y += 16 * 1.4;
+  page.drawLine({ start: { x: ML, y: PH - y + 4 }, end: { x: PW - MR, y: PH - y + 4 }, thickness: 1.5, color: C_BLUE });
+  y += 22;
+
+  // Entries
+  const dotW = regular.widthOfTextAtSize(".", 11);
+  for (const entry of entries) {
+    const titleText = sanitize(entry.title);
+    const pageStr   = String(entry.page);
+    const titleW    = regular.widthOfTextAtSize(titleText, 11);
+    const pageW     = bold.widthOfTextAtSize(pageStr, 11);
+    const nDots     = Math.max(3, Math.floor((UW - titleW - pageW - 16) / dotW));
+    page.drawText(titleText, { x: ML, y: PH - y, size: 11, font: regular, color: C_DARK });
+    page.drawText(".".repeat(nDots), { x: ML + titleW + 6, y: PH - y, size: 11, font: regular, color: C_GRAY });
+    page.drawText(pageStr, { x: PW - MR - pageW, y: PH - y, size: 11, font: bold, color: C_BLUE });
+    y += 11 * 2.6;
+  }
+
+  // Footer
+  page.drawText("SysGP — Sistema Gerenciador de Projetos", { x: ML, y: 20, size: 8, font: regular, color: C_GRAY });
+  const pg2W = regular.widthOfTextAtSize("Página 2", 8);
+  page.drawText("Página 2", { x: PW - MR - pg2W, y: 20, size: 8, font: regular, color: C_GRAY });
+}
+
 // ── Main report generator ─────────────────────────────────────────────
 
 async function gerarPDF({
@@ -314,73 +430,27 @@ async function gerarPDF({
   periodo: { inicio: string; fim: string };
 }): Promise<Uint8Array> {
 
+  // Cover = page 1, TOC = page 2, content starts at page 3
   const doc = await PDFDocument.create();
   const ctx: Ctx = {
     doc,
     page: doc.addPage([PW, PH]),
     y: MT,
-    pageNum: 1,
+    pageNum: 3,
     regular: await doc.embedFont(StandardFonts.Helvetica),
     bold: await doc.embedFont(StandardFonts.HelveticaBold),
   };
 
-  // Footer on page 1
+  // Footer on first content page
   ctx.page.drawText("SysGP — Sistema Gerenciador de Projetos", { x: ML, y: 20, size: 8, font: ctx.regular, color: C_GRAY });
-  ctx.page.drawText("Página 1", { x: PW - MR - 40, y: 20, size: 8, font: ctx.regular, color: C_GRAY });
+  ctx.page.drawText(`Página ${ctx.pageNum}`, { x: PW - MR - 40, y: 20, size: 8, font: ctx.regular, color: C_GRAY });
 
-  // ── Cabeçalho ────────────────────────────────────────────────────────
-  // Blue top bar
-  ctx.page.drawRectangle({ x: ML, y: ry(ctx.y, 4), width: UW, height: 4, color: C_BLUE });
-  gap(ctx, 12);
-
-  drawLine(ctx, "SysGP", ML, 18, ctx.bold, C_BLUE);
-  drawLine(ctx, "Sistema Gerenciador de Projetos", ML, 9, ctx.regular, C_GRAY);
-  gap(ctx, 4);
-
-  // Report label (right side, same y-area)
-  const emitidoEm = `Emitido em ${formatarData(new Date())}`;
-  const labelW = ctx.bold.widthOfTextAtSize("RELATÓRIO DE ATIVIDADES", 10);
-  ctx.page.drawText("RELATÓRIO DE ATIVIDADES", { x: PW - MR - labelW, y: py(ctx.y - 36, 10), size: 10, font: ctx.bold, color: C_DARK });
-  const emW = ctx.regular.widthOfTextAtSize(emitidoEm, 8);
-  ctx.page.drawText(emitidoEm, { x: PW - MR - emW, y: py(ctx.y - 22, 8), size: 8, font: ctx.regular, color: C_GRAY });
-
-  gap(ctx, 14);
-  ctx.page.drawLine({ start: { x: ML, y: PH - ctx.y }, end: { x: PW - MR, y: PH - ctx.y }, thickness: 1, color: C_BLUE });
-  gap(ctx, 10);
-
-  // Project title
-  drawBlock(ctx, projeto.titulo, ML, UW, 16, ctx.bold, C_DARK);
-  gap(ctx, 2);
-  drawLine(ctx, `Período do relatório: ${formatarData(periodo.inicio)} a ${formatarData(periodo.fim)}`, ML, 10, ctx.regular, C_GRAY);
-  gap(ctx, 10);
-
-  // Info grid (2x2 cells)
-  const cw = UW / 2 - 3;
-  const ch = 38;
-  const cells: [string, string][] = [
-    ["Coordenador", projeto.coordenadorNome],
-    ["Status do Projeto", projeto.status.replace(/_/g, " ")],
-    ["Início do Projeto", formatarData(projeto.dataInicio)],
-    ["Término Previsto", formatarData(projeto.dataFimPrevista)],
-  ];
-  for (let i = 0; i < cells.length; i += 2) {
-    ensure(ctx, ch + 4);
-    const [lbl0, val0] = cells[i];
-    const [lbl1, val1] = cells[i + 1];
-    const x0 = ML, x1 = ML + cw + 6;
-    // Cell 0
-    drawRect(ctx, x0, cw, ch, C_LBLUE, C_BBLUE);
-    ctx.page.drawText(lbl0, { x: x0 + 8, y: ry(ctx.y, ch) + ch - 14, size: 8, font: ctx.regular, color: C_GRAY });
-    ctx.page.drawText(sanitize(val0).slice(0, 35), { x: x0 + 8, y: ry(ctx.y, ch) + 8, size: 10, font: ctx.bold, color: C_DARK });
-    // Cell 1
-    drawRect(ctx, x1, cw, ch, C_LBLUE, C_BBLUE);
-    ctx.page.drawText(lbl1, { x: x1 + 8, y: ry(ctx.y, ch) + ch - 14, size: 8, font: ctx.regular, color: C_GRAY });
-    ctx.page.drawText(sanitize(val1).slice(0, 35), { x: x1 + 8, y: ry(ctx.y, ch) + 8, size: 10, font: ctx.bold, color: C_DARK });
-    ctx.y += ch + 4;
-  }
-  gap(ctx, 10);
+  // TOC entries tracked as sections are rendered
+  const toc: Array<{ title: string; page: number }> = [];
 
   // ── 1. Apresentação ──────────────────────────────────────────────────
+  ensure(ctx, 36);
+  toc.push({ title: "1. Apresentação", page: ctx.pageNum });
   drawSection(ctx, "1. Apresentação");
   drawBlock(ctx,
     `Este relatório apresenta as atividades realizadas no âmbito do projeto "${projeto.titulo}", no período de ${formatarData(periodo.inicio)} a ${formatarData(periodo.fim)}, sob coordenação de ${projeto.coordenadorNome}. Para cada atividade são descritas as ações executadas, com suas respectivas datas de ocorrência e documentos comprobatórios.`,
@@ -389,6 +459,8 @@ async function gerarPDF({
   gap(ctx, 14);
 
   // ── 2. Equipe ────────────────────────────────────────────────────────
+  ensure(ctx, 36);
+  toc.push({ title: "2. Equipe", page: ctx.pageNum });
   drawSection(ctx, "2. Equipe");
 
   // Table header
@@ -421,6 +493,8 @@ async function gerarPDF({
   gap(ctx, 14);
 
   // ── 3. Atividades ────────────────────────────────────────────────────
+  ensure(ctx, 36);
+  toc.push({ title: "3. Atividades Realizadas no Período", page: ctx.pageNum });
   drawSection(ctx, "3. Atividades Realizadas no Período");
 
   if (atividades.length === 0) {
@@ -539,11 +613,43 @@ async function gerarPDF({
     gap(ctx, 12);
   }
 
+  // ── 4. Assinatura ────────────────────────────────────────────────────
+  ensure(ctx, 155);
+  toc.push({ title: "4. Assinatura do Coordenador", page: ctx.pageNum });
+  drawSection(ctx, "Assinatura do Coordenador");
+  gap(ctx, 56); // blank space for handwritten signature
+
+  const sigLineW = 220;
+  const sigX = (PW - sigLineW) / 2;
+  ctx.page.drawLine({
+    start: { x: sigX,            y: PH - ctx.y },
+    end:   { x: sigX + sigLineW, y: PH - ctx.y },
+    thickness: 0.8, color: C_DARK,
+  });
+  gap(ctx, 8);
+  const sigNameText = sanitize(projeto.coordenadorNome);
+  const sigNameW = ctx.bold.widthOfTextAtSize(sigNameText, 10);
+  ctx.page.drawText(sigNameText, { x: (PW - sigNameW) / 2, y: py(ctx.y, 10), size: 10, font: ctx.bold, color: C_DARK });
+  ctx.y += 10 * 1.4;
+  const sigRoleText = "Coordenador do Projeto";
+  const sigRoleW = ctx.regular.widthOfTextAtSize(sigRoleText, 9);
+  ctx.page.drawText(sigRoleText, { x: (PW - sigRoleW) / 2, y: py(ctx.y, 9), size: 9, font: ctx.regular, color: C_GRAY });
+  ctx.y += 9 * 1.4;
+  gap(ctx, 20);
+
   // ── Rodapé do relatório ───────────────────────────────────────────────
   ensure(ctx, 30);
   ctx.page.drawLine({ start: { x: ML, y: PH - ctx.y }, end: { x: PW - MR, y: PH - ctx.y }, thickness: 0.5, color: C_BBLUE });
   gap(ctx, 6);
   drawLine(ctx, `Gerado automaticamente em ${formatarData(new Date())} — SysGP`, ML, 8, ctx.regular, C_GRAY);
+
+  // Track annex start page (page numbers already final because cover+TOC offset was baked in from pageNum=3)
+  if (imageAttachments.length + pdfAttachmentsToMerge.length > 0) {
+    toc.push({
+      title: `Anexos (${imageAttachments.length + pdfAttachmentsToMerge.length} arquivo(s))`,
+      page: ctx.pageNum + 1,
+    });
+  }
 
   // ── Append image attachments ──────────────────────────────────────────
   for (const att of imageAttachments) {
@@ -584,6 +690,14 @@ async function gerarPDF({
       copiedPages.forEach(p => doc.addPage(p));
     } catch { /* skip corrupt or unreadable PDF */ }
   }
+
+  // ── Insert Sumário at position 1 (after cover, before content) ────────
+  const tocPage = doc.insertPage(1, [PW, PH]);
+  drawTocPage(tocPage, toc, ctx.regular, ctx.bold);
+
+  // ── Insert cover at position 0 (first page of final document) ─────────
+  const coverPage = doc.insertPage(0, [PW, PH]);
+  drawCoverPage(coverPage, projeto, periodo, ctx.regular, ctx.bold);
 
   return await doc.save();
 }
