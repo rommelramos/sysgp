@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { prisma } from "@/lib/prisma";
@@ -18,7 +19,6 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 });
 
   const { projetoId, usuarioIds, dataInicio, dataFim } = parsed.data;
-  const formato: "HTML" | "PDF" = (body as Record<string, unknown>).formato === "HTML" ? "HTML" : "PDF";
 
   if (session.perfil === "MEMBRO") {
     if (usuarioIds.length > 1 || usuarioIds[0] !== session.id)
@@ -62,7 +62,6 @@ export async function POST(req: NextRequest) {
       orderBy: atividadeOrder,
     }) as AtividadeRow[];
   } catch {
-    // acoes_atividade table not yet migrated — retry without actions
     const rows = await prisma.atividade.findMany({
       where: atividadeWhere,
       include: { meta: { select: { descricao: true, ordem: true } } },
@@ -71,23 +70,14 @@ export async function POST(req: NextRequest) {
     atividades = (rows as unknown[]).map((r) => ({ ...(r as object), acoes: [] as AcaoRow[] })) as AtividadeRow[];
   }
 
-  // ── Merge activities with the same title ────────────────────────────
   const merged = mergeAtividades(atividades);
 
-  let html = gerarHTMLRelatorio({
+  const pdfBytes = await gerarPDF({
     projeto: { ...projeto, coordenadorNome: projeto.coordenador.nomeCompleto },
     membros,
     atividades: merged,
     periodo: { inicio: dataInicio, fim: dataFim },
   });
-
-  // For PDF format: inject auto-print script so the browser opens the print dialog immediately
-  if (formato === "PDF") {
-    html = html.replace(
-      "</body>",
-      `<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},600);});</script></body>`
-    );
-  }
 
   await registrarAuditoria({
     usuarioId: BigInt(session.id),
@@ -98,10 +88,10 @@ export async function POST(req: NextRequest) {
     detalhes: { membros: usuarioIds, periodo: { dataInicio, dataFim } },
   });
 
-  return new NextResponse(html, {
+  return new NextResponse(Buffer.from(pdfBytes) as unknown as BodyInit, {
     headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Content-Disposition": `inline; filename="relatorio_${projetoId}_${dataInicio}_${dataFim}.html"`,
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="relatorio_${projetoId}_${dataInicio}_${dataFim}.pdf"`,
     },
   });
 }
@@ -109,13 +99,7 @@ export async function POST(req: NextRequest) {
 // ── Types ─────────────────────────────────────────────────────────────
 
 type DocRow = { nomeOriginal: string; mimeType: string; caminho: string };
-
-type AcaoRow = {
-  dataOcorrido: Date;
-  descricao: string;
-  documentos: DocRow[];
-};
-
+type AcaoRow = { dataOcorrido: Date; descricao: string; documentos: DocRow[] };
 type AtividadeRow = {
   titulo: string;
   descricao: string | null;
@@ -125,9 +109,6 @@ type AtividadeRow = {
   meta: { descricao: string; ordem: number } | null;
   acoes: AcaoRow[];
 };
-
-type AtividadeMesclada = AtividadeRow; // same shape after merge
-
 type MembroRow = {
   funcao: string | null;
   metas: Array<{ descricao: string; ordem: number }>;
@@ -136,97 +117,159 @@ type MembroRow = {
 
 // ── Merge activities with identical titles ────────────────────────────
 
-function mergeAtividades(atividades: AtividadeRow[]): AtividadeMesclada[] {
-  const map = new Map<string, AtividadeMesclada>();
-
+function mergeAtividades(atividades: AtividadeRow[]): AtividadeRow[] {
+  const map = new Map<string, AtividadeRow>();
   for (const a of atividades) {
     const key = a.titulo.trim().toLowerCase();
     if (!map.has(key)) {
       map.set(key, { ...a, acoes: [...a.acoes] });
     } else {
-      // Accumulate actions from duplicate entries
       const existing = map.get(key)!;
       existing.acoes.push(...a.acoes);
-      // Pick earliest start and latest end across duplicates
-      if (a.dataInicio && (!existing.dataInicio || a.dataInicio < existing.dataInicio))
-        existing.dataInicio = a.dataInicio;
-      if (a.dataFim && (!existing.dataFim || a.dataFim > existing.dataFim))
-        existing.dataFim = a.dataFim;
-      // If any copy is concluded, mark concluded
+      if (a.dataInicio && (!existing.dataInicio || a.dataInicio < existing.dataInicio)) existing.dataInicio = a.dataInicio;
+      if (a.dataFim && (!existing.dataFim || a.dataFim > existing.dataFim)) existing.dataFim = a.dataFim;
       if (a.concluida) existing.concluida = true;
     }
   }
-
-  // Sort merged actions chronologically
   for (const a of map.values())
     a.acoes.sort((x, y) => new Date(x.dataOcorrido).getTime() - new Date(y.dataOcorrido).getTime());
-
   return [...map.values()];
 }
 
-// ── Read file from disk and return base64 string (best-effort) ────────
+// ── Load file bytes from disk (best-effort) ───────────────────────────
 
-function lerArquivoBase64(doc: DocRow): string {
+function lerArquivo(caminho: string): Buffer | null {
   try {
-    const filePath = join(process.cwd(), doc.caminho.startsWith("/") ? doc.caminho.slice(1) : doc.caminho);
-    if (!existsSync(filePath)) return "";
-    return readFileSync(filePath).toString("base64");
+    const filePath = join(process.cwd(), caminho.startsWith("/") ? caminho.slice(1) : caminho);
+    if (!existsSync(filePath)) return null;
+    return readFileSync(filePath);
   } catch {
-    return "";
+    return null;
   }
 }
 
-// ── Evidence block for one action's documents ─────────────────────────
+// ── PDF generation with pdf-lib ───────────────────────────────────────
 
-function renderEvidencias(documentos: DocRow[]): string {
-  if (documentos.length === 0) return "";
+const PW = 595.28;  // A4 width (pts)
+const PH = 841.89;  // A4 height (pts)
+const ML = 50;      // left margin
+const MR = 50;      // right margin
+const MT = 45;      // top margin
+const MB = 55;      // bottom margin
+const UW = PW - ML - MR; // usable width
 
-  const itens = documentos.map((doc) => {
-    const isImage = doc.mimeType.startsWith("image/");
-    const isPdf   = doc.mimeType === "application/pdf";
-    const base64  = lerArquivoBase64(doc);
+// Colours
+const C_BLUE  = rgb(0.114, 0.306, 0.851);
+const C_DARK  = rgb(0.067, 0.094, 0.153);
+const C_GRAY  = rgb(0.420, 0.447, 0.502);
+const C_LBLUE = rgb(0.937, 0.965, 1.000);
+const C_BBLUE = rgb(0.749, 0.859, 0.996);
+const C_GREEN = rgb(0.024, 0.369, 0.275);
+const C_LGRN  = rgb(0.820, 0.980, 0.898);
+const C_WHITE = rgb(1, 1, 1);
 
-    // ── Image ──────────────────────────────────────────────────────────
-    if (base64 && isImage) {
-      return `
-        <div class="evidencia">
-          <p class="ev-label">📷 Imagem — ${doc.nomeOriginal}</p>
-          <img src="data:${doc.mimeType};base64,${base64}"
-               alt="${doc.nomeOriginal}"
-               style="max-width:100%; max-height:480px; display:block; border:1px solid #E5E7EB; border-radius:4px; margin-top:4px;" />
-        </div>`;
-    }
-
-    // ── PDF — embedded iframe (hidden on print, note shown instead) ────
-    if (base64 && isPdf) {
-      return `
-        <div class="evidencia">
-          <p class="ev-label">📄 Documento PDF — ${doc.nomeOriginal}</p>
-          <iframe src="data:application/pdf;base64,${base64}"
-                  class="pdf-embed"
-                  style="width:100%; height:540px; border:1px solid #E5E7EB; border-radius:4px; margin-top:4px; display:block;"
-                  title="${doc.nomeOriginal}"></iframe>
-          <p class="pdf-print-note" style="display:none; font-size:10px; color:#6B7280; font-style:italic; margin:4px 0 0;">
-            [Documento PDF — visualize a versão digital do relatório para ver o arquivo completo]
-          </p>
-        </div>`;
-    }
-
-    // ── Fallback: file not on disk (Vercel) or unsupported type ────────
-    const icon  = isImage ? "🖼️" : isPdf ? "📄" : "📎";
-    const label = isImage ? "Imagem" : isPdf ? "Documento PDF" : "Anexo";
-    return `
-      <div class="evidencia">
-        <p class="ev-label">${icon} ${label} — ${doc.nomeOriginal}</p>
-      </div>`;
-  }).join("");
-
-  return `<div class="evidencias-bloco">${itens}</div>`;
+/** Layout context — y is "from top of page" */
+interface Ctx {
+  doc: PDFDocument;
+  page: PDFPage;
+  y: number;       // distance from top
+  pageNum: number;
+  regular: PDFFont;
+  bold: PDFFont;
 }
 
-// ── HTML report ───────────────────────────────────────────────────────
+/** Convert "from-top" y to pdf-lib baseline y (for text of given size) */
+const py = (y: number, size: number) => PH - y - size;
+/** Convert "from-top" y to pdf-lib rectangle bottom-left y */
+const ry = (y: number, h: number) => PH - y - h;
 
-function gerarHTMLRelatorio({
+function addPage(ctx: Ctx): void {
+  ctx.page = ctx.doc.addPage([PW, PH]);
+  ctx.pageNum++;
+  ctx.y = MT;
+  // footer
+  ctx.page.drawText("SysGP — Sistema Gerenciador de Projetos", { x: ML, y: 20, size: 8, font: ctx.regular, color: C_GRAY });
+  ctx.page.drawText(`Página ${ctx.pageNum}`, { x: PW - MR - 40, y: 20, size: 8, font: ctx.regular, color: C_GRAY });
+}
+
+function ensure(ctx: Ctx, need: number): void {
+  if (ctx.y + need > PH - MB) addPage(ctx);
+}
+
+function gap(ctx: Ctx, pts: number): void { ctx.y += pts; }
+
+/** Wrap text into lines that fit within maxW */
+function wrap(text: string, font: PDFFont, size: number, maxW: number): string[] {
+  const lines: string[] = [];
+  for (const para of text.split("\n")) {
+    if (!para.trim()) { lines.push(""); continue; }
+    let cur = "";
+    for (const word of para.split(" ").filter(Boolean)) {
+      const test = cur ? `${cur} ${word}` : word;
+      if (font.widthOfTextAtSize(test, size) > maxW && cur) {
+        lines.push(cur);
+        cur = word;
+      } else {
+        cur = test;
+      }
+    }
+    if (cur) lines.push(cur);
+  }
+  return lines;
+}
+
+/** Draw single-line text at ctx.y, optionally advance */
+function drawLine(ctx: Ctx, text: string, x: number, size: number, font: PDFFont, color = C_DARK, advance = true): void {
+  ctx.page.drawText(text, { x, y: py(ctx.y, size), size, font, color });
+  if (advance) ctx.y += size * 1.45;
+}
+
+/** Draw wrapped text block — advances ctx.y */
+function drawBlock(ctx: Ctx, text: string, x: number, maxW: number, size: number, font: PDFFont, color = C_DARK, leading = 1.5): void {
+  for (const line of wrap(text, font, size, maxW)) {
+    ensure(ctx, size * leading + 4);
+    if (line === "") { ctx.y += size * 0.6; continue; }
+    ctx.page.drawText(line, { x, y: py(ctx.y, size), size, font, color });
+    ctx.y += size * leading;
+  }
+}
+
+/** Draw a section title with blue underline */
+function drawSection(ctx: Ctx, title: string): void {
+  ensure(ctx, 36);
+  gap(ctx, 4);
+  drawLine(ctx, title, ML, 12, ctx.bold, C_BLUE);
+  ctx.page.drawLine({ start: { x: ML, y: PH - ctx.y + 4 }, end: { x: PW - MR, y: PH - ctx.y + 4 }, thickness: 1.5, color: C_BLUE });
+  gap(ctx, 8);
+}
+
+/** Draw a filled rectangle at ctx.y — does NOT advance */
+function drawRect(ctx: Ctx, x: number, w: number, h: number, fill: ReturnType<typeof rgb>, border?: ReturnType<typeof rgb>): void {
+  ctx.page.drawRectangle({ x, y: ry(ctx.y, h), width: w, height: h, color: fill, ...(border ? { borderColor: border, borderWidth: 0.5 } : {}) });
+}
+
+/** Embed an image (JPEG or PNG) in the PDF document */
+async function embedImage(ctx: Ctx, doc: DocRow): Promise<void> {
+  const bytes = lerArquivo(doc.caminho);
+  if (!bytes) return;
+  try {
+    const img = doc.mimeType === "image/png"
+      ? await ctx.doc.embedPng(bytes)
+      : await ctx.doc.embedJpg(bytes);
+    const { width: iw, height: ih } = img.scale(1);
+    // Scale to fit within usable width, max 400pt tall
+    const scale = Math.min(UW / iw, 400 / ih, 1);
+    const dw = iw * scale;
+    const dh = ih * scale;
+    ensure(ctx, dh + 20);
+    ctx.page.drawImage(img, { x: ML, y: ry(ctx.y, dh), width: dw, height: dh });
+    ctx.y += dh + 8;
+  } catch { /* unsupported image format — skip */ }
+}
+
+// ── Main report generator ─────────────────────────────────────────────
+
+async function gerarPDF({
   projeto,
   membros,
   atividades,
@@ -234,279 +277,260 @@ function gerarHTMLRelatorio({
 }: {
   projeto: { titulo: string; descricao: string | null; coordenadorNome: string; dataInicio: Date | null; dataFimPrevista: Date | null; status: string };
   membros: MembroRow[];
-  atividades: AtividadeMesclada[];
+  atividades: AtividadeRow[];
   periodo: { inicio: string; fim: string };
-}): string {
+}): Promise<Uint8Array> {
 
-  const atividadesHTML = atividades.map((a, ai) => `
-    <div class="atividade-bloco">
-      <!-- Activity header -->
-      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:6px;">
-        <strong style="font-size:12px; color:#1D4ED8; line-height:1.4;">${ai + 1}. ${a.titulo}</strong>
-        <span style="font-size:10px; padding:2px 8px; border-radius:99px; white-space:nowrap;
-              background:${a.concluida ? "#D1FAE5" : "#DBEAFE"};
-              color:${a.concluida ? "#065F46" : "#1e40af"};">
-          ${a.concluida ? "Concluída" : "Em Andamento"}
-        </span>
-      </div>
-      ${a.meta ? `<p style="font-size:10px; color:#6366F1; margin:0 0 3px;">Meta ${a.meta.ordem}: ${a.meta.descricao}</p>` : ""}
-      ${(a.dataInicio || a.dataFim)
-        ? `<p style="font-size:10px; color:#6B7280; margin:0 0 5px;">
-             Período previsto: ${formatarData(a.dataInicio)} a ${formatarData(a.dataFim)}
-           </p>` : ""}
-      ${a.descricao
-        ? `<p style="font-size:11px; color:#374151; margin:0 0 8px; line-height:1.55;">${a.descricao.replace(/<[^>]+>/g, "")}</p>`
-        : ""}
+  const doc = await PDFDocument.create();
+  const ctx: Ctx = {
+    doc,
+    page: doc.addPage([PW, PH]),
+    y: MT,
+    pageNum: 1,
+    regular: await doc.embedFont(StandardFonts.Helvetica),
+    bold: await doc.embedFont(StandardFonts.HelveticaBold),
+  };
 
-      <!-- Actions -->
-      ${a.acoes.length === 0
-        ? `<p style="font-size:10px; color:#9CA3AF; font-style:italic; margin:6px 0 0;">Nenhuma ação registrada para esta atividade no período.</p>`
-        : `
-          <div style="border-top:1px solid #E5E7EB; margin-top:8px; padding-top:8px;">
-            <p style="font-size:11px; font-weight:700; color:#374151; margin:0 0 8px; letter-spacing:0.02em;">
-              AÇÕES REALIZADAS
-            </p>
-            ${a.acoes.map((ac, acIdx) => `
-              <div class="acao-bloco">
-                <p style="font-size:11px; font-weight:600; color:#1e40af; margin:0 0 5px;">
-                  Ação ${acIdx + 1} &nbsp;·&nbsp; ${formatarData(ac.dataOcorrido)}
-                </p>
-                <p style="font-size:11px; color:#1f2937; margin:0 0 8px; line-height:1.6; white-space:pre-wrap;">${ac.descricao}</p>
-                ${renderEvidencias(ac.documentos)}
-              </div>
-            `).join("")}
-          </div>`}
-    </div>
-  `).join("");
+  // Footer on page 1
+  ctx.page.drawText("SysGP — Sistema Gerenciador de Projetos", { x: ML, y: 20, size: 8, font: ctx.regular, color: C_GRAY });
+  ctx.page.drawText("Página 1", { x: PW - MR - 40, y: 20, size: 8, font: ctx.regular, color: C_GRAY });
 
-  const equipeHTML = membros.map(m => `
-    <tr>
-      <td style="padding:6px 10px;"><strong>${m.usuario.nomeCompleto}</strong></td>
-      <td style="padding:6px 10px; color:#6B7280;">${m.funcao || "—"}</td>
-      <td style="padding:6px 10px; color:#6B7280;">${m.metas.length > 0
-        ? m.metas.map(mt => `${mt.ordem}. ${mt.descricao}`).join("<br>")
-        : "—"}</td>
-    </tr>
-  `).join("");
+  // ── Cabeçalho ────────────────────────────────────────────────────────
+  // Blue top bar
+  ctx.page.drawRectangle({ x: ML, y: ry(ctx.y, 4), width: UW, height: 4, color: C_BLUE });
+  gap(ctx, 12);
 
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Relatório de Atividades — ${projeto.titulo}</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 12px;
-      color: #111827;
-      margin: 0;
-      padding: 0;
-      background: #fff;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+  drawLine(ctx, "SysGP", ML, 18, ctx.bold, C_BLUE);
+  drawLine(ctx, "Sistema Gerenciador de Projetos", ML, 9, ctx.regular, C_GRAY);
+  gap(ctx, 4);
+
+  // Report label (right side, same y-area)
+  const emitidoEm = `Emitido em ${formatarData(new Date())}`;
+  const labelW = ctx.bold.widthOfTextAtSize("RELATÓRIO DE ATIVIDADES", 10);
+  ctx.page.drawText("RELATÓRIO DE ATIVIDADES", { x: PW - MR - labelW, y: py(ctx.y - 36, 10), size: 10, font: ctx.bold, color: C_DARK });
+  const emW = ctx.regular.widthOfTextAtSize(emitidoEm, 8);
+  ctx.page.drawText(emitidoEm, { x: PW - MR - emW, y: py(ctx.y - 22, 8), size: 8, font: ctx.regular, color: C_GRAY });
+
+  gap(ctx, 14);
+  ctx.page.drawLine({ start: { x: ML, y: PH - ctx.y }, end: { x: PW - MR, y: PH - ctx.y }, thickness: 1, color: C_BLUE });
+  gap(ctx, 10);
+
+  // Project title
+  drawBlock(ctx, projeto.titulo, ML, UW, 16, ctx.bold, C_DARK);
+  gap(ctx, 2);
+  drawLine(ctx, `Período do relatório: ${formatarData(periodo.inicio)} a ${formatarData(periodo.fim)}`, ML, 10, ctx.regular, C_GRAY);
+  gap(ctx, 10);
+
+  // Info grid (2x2 cells)
+  const cw = UW / 2 - 3;
+  const ch = 38;
+  const cells: [string, string][] = [
+    ["Coordenador", projeto.coordenadorNome],
+    ["Status do Projeto", projeto.status.replace(/_/g, " ")],
+    ["Início do Projeto", formatarData(projeto.dataInicio)],
+    ["Término Previsto", formatarData(projeto.dataFimPrevista)],
+  ];
+  for (let i = 0; i < cells.length; i += 2) {
+    ensure(ctx, ch + 4);
+    const [lbl0, val0] = cells[i];
+    const [lbl1, val1] = cells[i + 1];
+    const x0 = ML, x1 = ML + cw + 6;
+    // Cell 0
+    drawRect(ctx, x0, cw, ch, C_LBLUE, C_BBLUE);
+    ctx.page.drawText(lbl0, { x: x0 + 8, y: ry(ctx.y, ch) + ch - 14, size: 8, font: ctx.regular, color: C_GRAY });
+    ctx.page.drawText(val0.slice(0, 35), { x: x0 + 8, y: ry(ctx.y, ch) + 8, size: 10, font: ctx.bold, color: C_DARK });
+    // Cell 1
+    drawRect(ctx, x1, cw, ch, C_LBLUE, C_BBLUE);
+    ctx.page.drawText(lbl1, { x: x1 + 8, y: ry(ctx.y, ch) + ch - 14, size: 8, font: ctx.regular, color: C_GRAY });
+    ctx.page.drawText(val1.slice(0, 35), { x: x1 + 8, y: ry(ctx.y, ch) + 8, size: 10, font: ctx.bold, color: C_DARK });
+    ctx.y += ch + 4;
+  }
+  gap(ctx, 10);
+
+  // ── 1. Apresentação ──────────────────────────────────────────────────
+  drawSection(ctx, "1. Apresentação");
+  drawBlock(ctx,
+    `Este relatório apresenta as atividades realizadas no âmbito do projeto "${projeto.titulo}", no período de ${formatarData(periodo.inicio)} a ${formatarData(periodo.fim)}, sob coordenação de ${projeto.coordenadorNome}. Para cada atividade são descritas as ações executadas, com suas respectivas datas de ocorrência e documentos comprobatórios.`,
+    ML, UW, 10, ctx.regular
+  );
+  gap(ctx, 14);
+
+  // ── 2. Equipe ────────────────────────────────────────────────────────
+  drawSection(ctx, "2. Equipe");
+
+  // Table header
+  ensure(ctx, 22);
+  const colW = [UW * 0.35, UW * 0.22, UW * 0.43];
+  const headers = ["Nome", "Função / Atuação", "Metas do Plano de Trabalho"];
+  drawRect(ctx, ML, UW, 20, C_LBLUE, C_BBLUE);
+  let hx = ML;
+  for (let i = 0; i < 3; i++) {
+    ctx.page.drawText(headers[i], { x: hx + 6, y: ry(ctx.y, 20) + 7, size: 8, font: ctx.bold, color: C_BLUE });
+    hx += colW[i];
+  }
+  ctx.y += 20;
+
+  for (const m of membros) {
+    const metasStr = m.metas.length > 0 ? m.metas.map(mt => `${mt.ordem}. ${mt.descricao}`).join(" | ") : "—";
+    const metasLines = wrap(metasStr, ctx.regular, 9, colW[2] - 12);
+    const rowH = Math.max(18, metasLines.length * 13 + 6);
+    ensure(ctx, rowH + 2);
+    ctx.page.drawLine({ start: { x: ML, y: ry(ctx.y, 0) }, end: { x: PW - MR, y: ry(ctx.y, 0) }, thickness: 0.3, color: C_BBLUE });
+    ctx.page.drawText(m.usuario.nomeCompleto.slice(0, 40), { x: ML + 6, y: ry(ctx.y, rowH) + rowH - 13, size: 9, font: ctx.bold, color: C_DARK });
+    ctx.page.drawText(m.funcao || "—", { x: ML + colW[0] + 6, y: ry(ctx.y, rowH) + rowH - 13, size: 9, font: ctx.regular, color: C_GRAY });
+    let my = ry(ctx.y, rowH) + rowH - 13;
+    for (const ml of metasLines) {
+      ctx.page.drawText(ml, { x: ML + colW[0] + colW[1] + 6, y: my, size: 9, font: ctx.regular, color: C_GRAY });
+      my -= 13;
     }
-    .page {
-      max-width: 860px;
-      margin: 0 auto;
-      padding: 36px 48px 48px;
+    ctx.y += rowH + 2;
+  }
+  gap(ctx, 14);
+
+  // ── 3. Atividades ────────────────────────────────────────────────────
+  drawSection(ctx, "3. Atividades Realizadas no Período");
+
+  if (atividades.length === 0) {
+    drawLine(ctx, "Nenhuma atividade registrada no período informado.", ML, 10, ctx.regular, C_GRAY);
+  }
+
+  // Collect PDF attachments to merge at the end
+  const pdfAttachmentsToMerge: Array<{ title: string; nomeOriginal: string; caminho: string }> = [];
+
+  for (let ai = 0; ai < atividades.length; ai++) {
+    const a = atividades[ai];
+    ensure(ctx, 50);
+
+    // Activity block — left blue border via a thin rectangle
+    const blockStartY = ctx.y;
+    gap(ctx, 8);
+
+    // Activity title + status
+    const statusLabel = a.concluida ? "Concluída" : "Em Andamento";
+    const statusBg = a.concluida ? C_LGRN : C_LBLUE;
+    const statusFg = a.concluida ? C_GREEN : C_BLUE;
+    const sLabelW = ctx.bold.widthOfTextAtSize(statusLabel, 8) + 14;
+    drawRect(ctx, PW - MR - sLabelW, sLabelW, 16, statusBg, a.concluida ? C_GREEN : C_BBLUE);
+    ctx.page.drawText(statusLabel, { x: PW - MR - sLabelW + 7, y: ry(ctx.y, 16) + 5, size: 8, font: ctx.bold, color: statusFg });
+
+    const titleMaxW = UW - sLabelW - 10;
+    const titleLines = wrap(`${ai + 1}. ${a.titulo}`, ctx.bold, 11, titleMaxW);
+    const blockTitleY = ctx.y;
+    for (const tl of titleLines) {
+      ctx.page.drawText(tl, { x: ML + 8, y: py(ctx.y, 11), size: 11, font: ctx.bold, color: C_BLUE });
+      ctx.y += 11 * 1.4;
     }
-    /* Header */
-    .header-bar {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      border-bottom: 3px solid #1D4ED8;
-      padding-bottom: 14px;
-      margin-bottom: 22px;
+    // Draw status badge aligned to first line of title
+    ctx.page.drawRectangle({ x: PW - MR - sLabelW, y: ry(blockTitleY, 16), width: sLabelW, height: 16, color: statusBg, borderColor: a.concluida ? C_GREEN : C_BBLUE, borderWidth: 0.5 });
+    ctx.page.drawText(statusLabel, { x: PW - MR - sLabelW + 7, y: ry(blockTitleY, 16) + 5, size: 8, font: ctx.bold, color: statusFg });
+
+    if (a.meta) {
+      ensure(ctx, 14);
+      drawLine(ctx, `Meta ${a.meta.ordem}: ${a.meta.descricao}`, ML + 8, 9, ctx.regular, rgb(0.38, 0.40, 0.94));
     }
-    .logo-title { font-size: 20px; font-weight: 900; color: #1D4ED8; letter-spacing: -0.5px; }
-    .logo-sub { font-size: 9px; color: #9CA3AF; display: block; margin-top: 1px; }
-    .report-label { font-size: 10px; color: #6B7280; text-align: right; line-height: 1.6; }
-    /* Project title block */
-    .project-title { font-size: 17px; font-weight: 800; color: #111827; margin: 0 0 4px; line-height: 1.3; }
-    .period-label { font-size: 11px; color: #6B7280; margin: 0 0 20px; }
-    /* Info grid */
-    .info-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 0;
-      background: #EFF6FF;
-      border: 1px solid #BFDBFE;
-      border-radius: 6px;
-      overflow: hidden;
-      margin-bottom: 24px;
-      font-size: 11px;
+    if (a.dataInicio || a.dataFim) {
+      ensure(ctx, 14);
+      drawLine(ctx, `Período previsto: ${formatarData(a.dataInicio)} a ${formatarData(a.dataFim)}`, ML + 8, 9, ctx.regular, C_GRAY);
     }
-    .info-grid .cell { padding: 8px 14px; border-bottom: 1px solid #BFDBFE; }
-    .info-grid .cell:nth-last-child(-n+2) { border-bottom: none; }
-    .info-grid .cell dt { color: #6B7280; font-weight: normal; }
-    .info-grid .cell dd { color: #111827; font-weight: 700; margin: 1px 0 0; }
-    /* Sections */
-    .secao { margin-bottom: 28px; }
-    .secao h2 {
-      font-size: 13px;
-      color: #1D4ED8;
-      border-bottom: 2px solid #1D4ED8;
-      padding-bottom: 5px;
-      margin: 0 0 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+    if (a.descricao) {
+      ensure(ctx, 14);
+      gap(ctx, 2);
+      drawBlock(ctx, a.descricao.replace(/<[^>]+>/g, ""), ML + 8, UW - 16, 10, ctx.regular);
     }
-    /* Team table */
-    table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    thead th { background: #EFF6FF; color: #1e40af; text-align: left; padding: 6px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
-    tbody td { border-bottom: 1px solid #F3F4F6; }
-    tbody tr:last-child td { border-bottom: none; }
-    /* Activity block */
-    .atividade-bloco {
-      margin-bottom: 20px;
-      padding: 12px 16px;
-      background: #F8FAFF;
-      border-left: 3px solid #1D4ED8;
-      border-radius: 0 6px 6px 0;
-      page-break-inside: avoid;
+
+    // Actions
+    if (a.acoes.length === 0) {
+      gap(ctx, 4);
+      drawLine(ctx, "Nenhuma ação registrada para esta atividade no período.", ML + 8, 9, ctx.regular, C_GRAY);
+    } else {
+      gap(ctx, 6);
+      ensure(ctx, 20);
+      ctx.page.drawLine({ start: { x: ML + 8, y: PH - ctx.y }, end: { x: PW - MR, y: PH - ctx.y }, thickness: 0.5, color: C_BBLUE });
+      gap(ctx, 5);
+      drawLine(ctx, "AÇÕES REALIZADAS", ML + 8, 9, ctx.bold, C_DARK);
+      gap(ctx, 4);
+
+      for (let acIdx = 0; acIdx < a.acoes.length; acIdx++) {
+        const ac = a.acoes[acIdx];
+        ensure(ctx, 36);
+
+        // Action header
+        drawRect(ctx, ML + 8, UW - 16, 18, C_LBLUE);
+        ctx.page.drawText(`Ação ${acIdx + 1}  ·  ${formatarData(ac.dataOcorrido)}`, {
+          x: ML + 16, y: ry(ctx.y, 18) + 6, size: 9, font: ctx.bold, color: C_BLUE,
+        });
+        ctx.y += 18;
+        gap(ctx, 4);
+
+        // Description
+        drawBlock(ctx, ac.descricao, ML + 8, UW - 16, 10, ctx.regular);
+        gap(ctx, 4);
+
+        // Evidence / attachments
+        if (ac.documentos.length > 0) {
+          ensure(ctx, 16);
+          drawLine(ctx, "Evidências:", ML + 8, 9, ctx.bold, C_GRAY);
+          gap(ctx, 2);
+
+          for (const doc of ac.documentos) {
+            const isImage = doc.mimeType.startsWith("image/");
+            const isPdf   = doc.mimeType === "application/pdf";
+
+            if (isImage) {
+              // Embed image inline
+              ensure(ctx, 20);
+              drawLine(ctx, `📷  ${doc.nomeOriginal}`, ML + 12, 8, ctx.regular, C_GRAY);
+              await embedImage(ctx, doc);
+              gap(ctx, 4);
+            } else if (isPdf) {
+              // PDF: show label inline; pages will be appended at the end
+              ensure(ctx, 14);
+              drawLine(ctx, `📄  ${doc.nomeOriginal}  [ver páginas em anexo]`, ML + 12, 8, ctx.regular, C_GRAY);
+              pdfAttachmentsToMerge.push({ title: `${a.titulo} — Ação ${acIdx + 1}`, nomeOriginal: doc.nomeOriginal, caminho: doc.caminho });
+              gap(ctx, 2);
+            } else {
+              ensure(ctx, 14);
+              drawLine(ctx, `📎  ${doc.nomeOriginal}`, ML + 12, 8, ctx.regular, C_GRAY);
+              gap(ctx, 2);
+            }
+          }
+        }
+        gap(ctx, 6);
+      }
     }
-    /* Action block */
-    .acao-bloco {
-      margin-bottom: 12px;
-      padding: 10px 12px;
-      background: #fff;
-      border: 1px solid #E5E7EB;
-      border-radius: 4px;
-      page-break-inside: avoid;
+
+    // Left blue border for the whole activity block
+    const blockEndY = ctx.y;
+    ctx.page.drawRectangle({ x: ML, y: PH - blockEndY, width: 3, height: blockEndY - blockStartY, color: C_BLUE });
+    gap(ctx, 12);
+  }
+
+  // ── Rodapé do relatório ───────────────────────────────────────────────
+  ensure(ctx, 30);
+  ctx.page.drawLine({ start: { x: ML, y: PH - ctx.y }, end: { x: PW - MR, y: PH - ctx.y }, thickness: 0.5, color: C_BBLUE });
+  gap(ctx, 6);
+  drawLine(ctx, `Gerado automaticamente em ${formatarData(new Date())} — SysGP`, ML, 8, ctx.regular, C_GRAY);
+
+  // ── Append PDF attachments ────────────────────────────────────────────
+  if (pdfAttachmentsToMerge.length > 0) {
+    for (const att of pdfAttachmentsToMerge) {
+      const bytes = lerArquivo(att.caminho);
+      if (!bytes) continue;
+      try {
+        const srcDoc = await PDFDocument.load(bytes);
+        const indices = srcDoc.getPageIndices();
+        // Cover page for this attachment
+        const coverPage = doc.addPage([PW, PH]);
+        coverPage.drawRectangle({ x: 0, y: PH - 80, width: PW, height: 80, color: C_BLUE });
+        coverPage.drawText("ANEXO — DOCUMENTO COMPROBATÓRIO", { x: ML, y: PH - 36, size: 14, font: ctx.bold, color: C_WHITE });
+        coverPage.drawText(att.title, { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
+        coverPage.drawText(att.nomeOriginal, { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
+        // Copy all pages from the attachment
+        const copiedPages = await doc.copyPages(srcDoc, indices);
+        copiedPages.forEach(p => doc.addPage(p));
+      } catch { /* skip corrupt or unreadable PDF */ }
     }
-    .acao-bloco:last-child { margin-bottom: 0; }
-    /* Evidence */
-    .evidencias-bloco { margin-top: 8px; }
-    .evidencia { margin-bottom: 10px; }
-    .ev-label {
-      font-size: 10px;
-      font-weight: 600;
-      color: #6B7280;
-      margin: 0 0 4px;
-      padding: 3px 8px;
-      background: #F9FAFB;
-      border: 1px solid #E5E7EB;
-      border-radius: 4px;
-      display: inline-block;
-    }
-    /* Footer */
-    .footer {
-      margin-top: 40px;
-      padding-top: 10px;
-      border-top: 1px solid #E5E7EB;
-      font-size: 9px;
-      color: #9CA3AF;
-      display: flex;
-      justify-content: space-between;
-    }
-    /* Print strip */
-    .print-strip {
-      background: #1D4ED8;
-      color: #fff;
-      padding: 10px 48px;
-      font-size: 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    @media print {
-      .print-strip { display: none !important; }
-      .page { padding: 16px 24px; max-width: 100%; }
-      body { font-size: 10.5px; }
-      /* Hide PDF iframes on print — browser cannot print iframes reliably */
-      .pdf-embed { display: none !important; }
-      .pdf-print-note { display: block !important; }
-    }
-  </style>
-</head>
-<body>
+  }
 
-  <!-- Print helper bar (hidden on print) -->
-  <div class="print-strip">
-    <span>📄 Relatório de Atividades — use <strong>Ctrl+P</strong> para salvar como PDF</span>
-    <button onclick="window.print()"
-      style="background:#fff; color:#1D4ED8; border:none; padding:5px 14px; border-radius:5px; font-size:12px; font-weight:700; cursor:pointer;">
-      Imprimir / Salvar PDF
-    </button>
-  </div>
-
-  <div class="page">
-
-    <!-- ── Cabeçalho ── -->
-    <div class="header-bar">
-      <div>
-        <span class="logo-title">SysGP</span>
-        <span class="logo-sub">Sistema Gerenciador de Projetos</span>
-      </div>
-      <div class="report-label">
-        <strong>RELATÓRIO DE ATIVIDADES</strong><br>
-        Emitido em ${formatarData(new Date())}
-      </div>
-    </div>
-
-    <!-- ── Identificação do projeto ── -->
-    <h1 class="project-title">${projeto.titulo}</h1>
-    <p class="period-label">Período do relatório: <strong>${formatarData(periodo.inicio)}</strong> a <strong>${formatarData(periodo.fim)}</strong></p>
-
-    <div class="info-grid">
-      <div class="cell"><dl><dt>Coordenador</dt><dd>${projeto.coordenadorNome}</dd></dl></div>
-      <div class="cell"><dl><dt>Status do Projeto</dt><dd>${projeto.status.replace("_", " ")}</dd></dl></div>
-      <div class="cell"><dl><dt>Início</dt><dd>${formatarData(projeto.dataInicio)}</dd></dl></div>
-      <div class="cell"><dl><dt>Término Previsto</dt><dd>${formatarData(projeto.dataFimPrevista)}</dd></dl></div>
-    </div>
-
-    ${projeto.descricao
-      ? `<p style="font-size:11px; color:#374151; margin:0 0 24px; line-height:1.6;">${projeto.descricao}</p>`
-      : ""}
-
-    <!-- ── 1. Apresentação ── -->
-    <div class="secao">
-      <h2>1. Apresentação</h2>
-      <p style="font-size:11px; color:#374151; line-height:1.65; margin:0;">
-        Este relatório apresenta as atividades realizadas no âmbito do projeto
-        <strong>${projeto.titulo}</strong>, no período de
-        <strong>${formatarData(periodo.inicio)}</strong> a <strong>${formatarData(periodo.fim)}</strong>,
-        sob coordenação de <strong>${projeto.coordenadorNome}</strong>.
-        Para cada atividade são descritas as ações executadas, com suas respectivas datas
-        de ocorrência e documentos comprobatórios que atestam a realização das atividades previstas.
-      </p>
-    </div>
-
-    <!-- ── 2. Equipe ── -->
-    <div class="secao">
-      <h2>2. Equipe</h2>
-      <table>
-        <thead>
-          <tr>
-            <th style="width:35%;">Nome</th>
-            <th style="width:25%;">Função / Atuação</th>
-            <th>Metas do Plano de Trabalho</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${equipeHTML}
-        </tbody>
-      </table>
-    </div>
-
-    <!-- ── 3. Atividades ── -->
-    <div class="secao">
-      <h2>3. Atividades Realizadas no Período</h2>
-      ${atividades.length === 0
-        ? `<p style="font-size:11px; color:#9CA3AF; font-style:italic;">Nenhuma atividade registrada no período informado.</p>`
-        : atividadesHTML}
-    </div>
-
-    <!-- ── Rodapé ── -->
-    <div class="footer">
-      <span>SysGP — Sistema Gerenciador de Projetos</span>
-      <span>Gerado automaticamente em ${formatarData(new Date())}</span>
-    </div>
-
-  </div>
-</body>
-</html>`;
+  return await doc.save();
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, FileDown, Globe } from "lucide-react";
+import { FileText, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
 import { Input } from "@/components/ui/Input";
@@ -21,7 +21,6 @@ export default function RelatoriosPage() {
   const [selectedMembros, setSelectedMembros] = useState<string[]>([]);
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
-  const [formato, setFormato] = useState<"HTML" | "PDF">("PDF");
   const [loading, setLoading] = useState(false);
   const toast = useToast();
   const { user } = useAuth();
@@ -63,21 +62,24 @@ export default function RelatoriosPage() {
       const res = await fetch("/api/relatorios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projetoId, usuarioIds: selectedMembros, dataInicio, dataFim, formato }),
+        body: JSON.stringify({ projetoId, usuarioIds: selectedMembros, dataInicio, dataFim }),
       });
       if (!res.ok) {
         const data = await res.json();
         toast("error", data.error || "Erro ao gerar relatório");
         return;
       }
-      const html = await res.text();
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      // Receive PDF bytes and trigger download
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      // Open in new tab; for PDF format the page auto-triggers print dialog
-      window.open(url, "_blank");
-      // Revoke after enough time for the new tab to load
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio_${projetoId}_${dataInicio}_${dataFim}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      toast("success", formato === "PDF" ? "Relatório aberto — use Ctrl+P para salvar como PDF" : "Relatório gerado!");
+      toast("success", "PDF gerado e baixado com sucesso!");
     } catch {
       toast("error", "Erro ao gerar relatório");
     } finally {
@@ -86,14 +88,16 @@ export default function RelatoriosPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl" style={{ marginLeft: '5px' }}>
-      <div style={{ marginLeft: '5px' }}>
+    <div className="space-y-6 max-w-2xl" style={{ marginLeft: "5px" }}>
+      <div style={{ marginLeft: "5px" }}>
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Relatórios</h1>
-        <p className="text-sm text-[var(--text-secondary)]">Gere relatórios periódicos de atividades</p>
+        <p className="text-sm text-[var(--text-secondary)]">
+          Gere relatórios de atividades em PDF com todos os anexos incorporados
+        </p>
       </div>
 
       <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl p-6 space-y-5">
-        <div className="flex items-center gap-2 text-[var(--accent-primary)]" style={{ marginLeft: '5px' }}>
+        <div className="flex items-center gap-2 text-[var(--accent-primary)]" style={{ marginLeft: "5px" }}>
           <FileText size={18} />
           <h2 className="text-base font-semibold text-[var(--text-primary)]">Configurar Relatório</h2>
         </div>
@@ -108,12 +112,24 @@ export default function RelatoriosPage() {
         />
 
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Período — Início" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} required />
-          <Input label="Período — Fim" type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} required />
+          <Input
+            label="Período — Início"
+            type="date"
+            value={dataInicio}
+            onChange={(e) => setDataInicio(e.target.value)}
+            required
+          />
+          <Input
+            label="Período — Fim"
+            type="date"
+            value={dataFim}
+            onChange={(e) => setDataFim(e.target.value)}
+            required
+          />
         </div>
 
         {membros.length > 0 && (
-          <div style={{ marginLeft: '5px' }}>
+          <div style={{ marginLeft: "5px" }}>
             <p className="text-sm font-medium text-[var(--text-secondary)] mb-2">
               Membros {user?.perfil !== "MEMBRO" && "(selecione)"}
             </p>
@@ -136,7 +152,11 @@ export default function RelatoriosPage() {
             </div>
             {user?.perfil !== "MEMBRO" && (
               <div className="flex gap-2 mt-2">
-                <Button variant="ghost" size="sm" onClick={() => setSelectedMembros(membros.map((m) => m.usuarioId))}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedMembros(membros.map((m) => m.usuarioId))}
+                >
                   Todos
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setSelectedMembros([])}>
@@ -147,50 +167,20 @@ export default function RelatoriosPage() {
           </div>
         )}
 
-        {/* Format selector */}
-        <div>
-          <p className="text-sm font-medium text-[var(--text-secondary)] mb-2">Formato de saída</p>
-          <div className="grid grid-cols-2 gap-2">
-            {(["PDF", "HTML"] as const).map((fmt) => {
-              const active = formato === fmt;
-              return (
-                <button
-                  key={fmt}
-                  type="button"
-                  onClick={() => setFormato(fmt)}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border text-sm font-medium transition-all
-                    ${active
-                      ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white shadow-sm"
-                      : "bg-[var(--bg-elevated)] border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
-                    }`}
-                >
-                  {fmt === "PDF"
-                    ? <FileDown size={15} />
-                    : <Globe size={15} />}
-                  {fmt === "PDF" ? "PDF" : "HTML"}
-                  {fmt === "PDF" && (
-                    <span className={`text-[10px] font-normal ml-0.5 ${active ? "text-blue-100" : "text-[var(--text-muted)]"}`}>
-                      (Ctrl+P)
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs text-[var(--text-muted)] mt-1.5">
-            {formato === "PDF"
-              ? "Abre o relatório e exibe automaticamente o diálogo de impressão para salvar como PDF."
-              : "Abre o relatório como página HTML em nova aba — pode salvar o arquivo ou imprimir manualmente."}
-          </p>
+        {/* Info strip */}
+        <div className="rounded-lg border border-[var(--accent-primary)] bg-[var(--accent-primary)]/5 px-4 py-3 text-xs text-[var(--accent-primary)] leading-relaxed">
+          <strong>Saída: PDF com anexos incorporados.</strong> Imagens são inseridas inline no relatório.
+          Documentos PDF são acrescentados como páginas extras ao final do arquivo, com capa identificando
+          a ação à qual pertencem.
         </div>
 
         <Button
           onClick={gerarRelatorio}
           loading={loading}
-          icon={formato === "PDF" ? <FileDown size={16} /> : <Globe size={16} />}
+          icon={<FileDown size={16} />}
           className="w-full"
         >
-          {formato === "PDF" ? "Gerar PDF" : "Gerar HTML"}
+          Gerar e Baixar PDF
         </Button>
       </div>
     </div>
