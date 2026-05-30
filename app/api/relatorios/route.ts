@@ -691,13 +691,14 @@ async function gerarPDF({
     } catch { /* skip corrupt or unreadable PDF */ }
   }
 
-  // ── Insert Sumário at position 1 (after cover, before content) ────────
-  const tocPage = doc.insertPage(1, [PW, PH]);
-  drawTocPage(tocPage, toc, ctx.regular, ctx.bold);
-
-  // ── Insert cover at position 0 (first page of final document) ─────────
+  // ── Insert cover at position 0, then TOC at position 1 ───────────────
+  // Order matters: insert cover first so that the subsequent insertPage(1)
+  // places the TOC immediately after the cover, not before it.
   const coverPage = doc.insertPage(0, [PW, PH]);
   drawCoverPage(coverPage, projeto, periodo, ctx.regular, ctx.bold);
+
+  const tocPage = doc.insertPage(1, [PW, PH]);
+  drawTocPage(tocPage, toc, ctx.regular, ctx.bold);
 
   return await doc.save();
 }
