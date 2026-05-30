@@ -31,13 +31,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (session.perfil === "MEMBRO" && String(acao.atividade.usuarioId) !== session.id)
     return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
 
-  let body: { documentos: Array<{ nomeOriginal: string; nomeArquivo: string; caminho: string; mimeType: string; tamanhoBytes: number; origem: "UPLOAD" | "PASTE" }> };
+  let body: { documentos: Array<{ nomeOriginal: string; nomeArquivo: string; caminho: string; mimeType: string; tamanhoBytes: number; origem: "UPLOAD" | "PASTE"; conteudoBase64?: string }> };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Requisição inválida" }, { status: 400 }); }
 
-  // Create each document individually to store binary content from disk
+  // Priority: base64 sent by client (works on Vercel) → file on disk (self-hosted fallback).
   const created = await Promise.all(
     body.documentos.map((d) => {
-      const conteudo = lerConteudo(d.caminho);
+      const conteudo = d.conteudoBase64
+        ? Buffer.from(d.conteudoBase64, "base64")
+        : lerConteudo(d.caminho);
       return prisma.acaoDocumento.create({
         data: {
           acaoId: BigInt(acaoId),

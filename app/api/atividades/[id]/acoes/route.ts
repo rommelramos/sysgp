@@ -17,6 +17,7 @@ const acaoSchema = z.object({
     mimeType: z.string(),
     tamanhoBytes: z.number(),
     origem: z.enum(["UPLOAD", "PASTE"]).default("UPLOAD"),
+    conteudoBase64: z.string().optional(), // base64 content from upload API
   })).optional().default([]),
 });
 
@@ -91,11 +92,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data: { atividadeId, descricao, dataOcorrido: new Date(dataOcorrido) },
   });
 
-  // Create each document individually so we can include file content from disk
+  // Create each document individually so we can store binary content.
+  // Priority: base64 sent by client (works on Vercel) → file on disk (self-hosted fallback).
   if (documentos.length > 0) {
     await Promise.all(
       documentos.map((d) => {
-        const conteudo = lerConteudo(d.caminho);
+        const conteudo = d.conteudoBase64
+          ? Buffer.from(d.conteudoBase64, "base64")
+          : lerConteudo(d.caminho);
         return prisma.acaoDocumento.create({
           data: {
             acaoId: acao.id,
