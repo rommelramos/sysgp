@@ -262,23 +262,42 @@ function drawRect(ctx: Ctx, x: number, w: number, h: number, fill: ReturnType<ty
   ctx.page.drawRectangle({ x, y: ry(ctx.y, h), width: w, height: h, color: fill, ...(border ? { borderColor: border, borderWidth: 0.5 } : {}) });
 }
 
-/** Embed an image (JPEG or PNG) in the PDF document */
-async function embedImage(ctx: Ctx, doc: DocRow): Promise<void> {
-  const bytes = lerArquivo(doc);
-  if (!bytes) return;
+/** Draw an image centred on the given page, scaled to fit. */
+async function drawImageOnPage(
+  page: PDFPage,
+  pdfDoc: PDFDocument,
+  bytes: Buffer,
+  mimeType: string,
+  regular: PDFFont,
+): Promise<void> {
+  const isPng  = mimeType === "image/png";
+  const isJpeg = mimeType === "image/jpeg" || mimeType === "image/jpg";
+  if (!isPng && !isJpeg) {
+    page.drawText(
+      sanitize(`Formato ${mimeType} nao suportado para visualizacao inline no PDF.`),
+      { x: ML, y: PH / 2, size: 10, font: regular, color: C_GRAY },
+    );
+    return;
+  }
   try {
-    const img = doc.mimeType === "image/png"
-      ? await ctx.doc.embedPng(bytes)
-      : await ctx.doc.embedJpg(bytes);
+    const img = isPng ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
     const { width: iw, height: ih } = img.scale(1);
-    // Scale to fit within usable width, max 400pt tall
-    const scale = Math.min(UW / iw, 400 / ih, 1);
+    const maxW = UW;
+    const maxH = PH - 120; // leave room for header/footer
+    const scale = Math.min(maxW / iw, maxH / ih, 1);
     const dw = iw * scale;
     const dh = ih * scale;
-    ensure(ctx, dh + 20);
-    ctx.page.drawImage(img, { x: ML, y: ry(ctx.y, dh), width: dw, height: dh });
-    ctx.y += dh + 8;
-  } catch { /* unsupported image format — skip */ }
+    page.drawImage(img, {
+      x: (PW - dw) / 2,
+      y: (PH - dh) / 2,
+      width: dw,
+      height: dh,
+    });
+  } catch {
+    page.drawText("Erro ao incorporar a imagem no PDF.", {
+      x: ML, y: PH / 2, size: 10, font: regular, color: C_GRAY,
+    });
+  }
 }
 
 // ── Main report generator ─────────────────────────────────────────────
@@ -408,8 +427,9 @@ async function gerarPDF({
     drawLine(ctx, "Nenhuma atividade registrada no período informado.", ML, 10, ctx.regular, C_GRAY);
   }
 
-  // Collect PDF attachments to merge at the end
+  // Collect attachments to append as annex pages at the end
   const pdfAttachmentsToMerge: Array<{ title: string; nomeOriginal: string; caminho: string; conteudo: Buffer | null }> = [];
+  const imageAttachments: Array<{ title: string; nomeOriginal: string; mimeType: string; caminho: string; conteudo: Buffer | null }> = [];
 
   for (let ai = 0; ai < atividades.length; ai++) {
     const a = atividades[ai];
@@ -491,11 +511,11 @@ async function gerarPDF({
             const isPdf   = doc.mimeType === "application/pdf";
 
             if (isImage) {
-              // Embed image inline
-              ensure(ctx, 20);
-              drawLine(ctx, `[Imagem] ${doc.nomeOriginal}`, ML + 12, 8, ctx.regular, C_GRAY);
-              await embedImage(ctx, doc);
-              gap(ctx, 4);
+              // Collect to annex — same treatment as PDFs
+              ensure(ctx, 14);
+              drawLine(ctx, `[Imagem] ${doc.nomeOriginal}  (ver em anexo)`, ML + 12, 8, ctx.regular, C_GRAY);
+              imageAttachments.push({ title: `${a.titulo} - Acao ${acIdx + 1}`, nomeOriginal: doc.nomeOriginal, mimeType: doc.mimeType, caminho: doc.caminho, conteudo: doc.conteudo });
+              gap(ctx, 2);
             } else if (isPdf) {
               // PDF: show label inline; pages will be appended at the end
               ensure(ctx, 14);
@@ -525,25 +545,44 @@ async function gerarPDF({
   gap(ctx, 6);
   drawLine(ctx, `Gerado automaticamente em ${formatarData(new Date())} — SysGP`, ML, 8, ctx.regular, C_GRAY);
 
-  // ── Append PDF attachments ────────────────────────────────────────────
-  if (pdfAttachmentsToMerge.length > 0) {
-    for (const att of pdfAttachmentsToMerge) {
-      const bytes = lerArquivo(att);
-      if (!bytes) continue;
-      try {
-        const srcDoc = await PDFDocument.load(bytes);
-        const indices = srcDoc.getPageIndices();
-        // Cover page for this attachment
-        const coverPage = doc.addPage([PW, PH]);
-        coverPage.drawRectangle({ x: 0, y: PH - 80, width: PW, height: 80, color: C_BLUE });
-        coverPage.drawText("ANEXO — DOCUMENTO COMPROBATÓRIO", { x: ML, y: PH - 36, size: 14, font: ctx.bold, color: C_WHITE });
-        coverPage.drawText(sanitize(att.title), { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
-        coverPage.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
-        // Copy all pages from the attachment
-        const copiedPages = await doc.copyPages(srcDoc, indices);
-        copiedPages.forEach(p => doc.addPage(p));
-      } catch { /* skip corrupt or unreadable PDF */ }
+  // ── Append image attachments ──────────────────────────────────────────
+  for (const att of imageAttachments) {
+    const bytes = lerArquivo(att);
+    // Cover page (always added so the annex list is complete even if image fails)
+    const coverPage = doc.addPage([PW, PH]);
+    coverPage.drawRectangle({ x: 0, y: PH - 80, width: PW, height: 80, color: C_BLUE });
+    coverPage.drawText("ANEXO — IMAGEM COMPROBATORIA", { x: ML, y: PH - 36, size: 14, font: ctx.bold, color: C_WHITE });
+    coverPage.drawText(sanitize(att.title), { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
+    coverPage.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
+
+    if (!bytes) {
+      coverPage.drawText("Arquivo nao disponivel no servidor (conteudo nao armazenado).", {
+        x: ML, y: PH - 140, size: 10, font: ctx.regular, color: C_GRAY,
+      });
+    } else {
+      // Image page
+      const imgPage = doc.addPage([PW, PH]);
+      await drawImageOnPage(imgPage, doc, bytes, att.mimeType, ctx.regular);
     }
+  }
+
+  // ── Append PDF attachments ────────────────────────────────────────────
+  for (const att of pdfAttachmentsToMerge) {
+    const bytes = lerArquivo(att);
+    if (!bytes) continue;
+    try {
+      const srcDoc = await PDFDocument.load(bytes);
+      const indices = srcDoc.getPageIndices();
+      // Cover page for this attachment
+      const coverPage = doc.addPage([PW, PH]);
+      coverPage.drawRectangle({ x: 0, y: PH - 80, width: PW, height: 80, color: C_BLUE });
+      coverPage.drawText("ANEXO — DOCUMENTO COMPROBATORIO", { x: ML, y: PH - 36, size: 14, font: ctx.bold, color: C_WHITE });
+      coverPage.drawText(sanitize(att.title), { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
+      coverPage.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
+      // Copy all pages from the attachment
+      const copiedPages = await doc.copyPages(srcDoc, indices);
+      copiedPages.forEach(p => doc.addPage(p));
+    } catch { /* skip corrupt or unreadable PDF */ }
   }
 
   return await doc.save();
