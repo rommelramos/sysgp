@@ -84,12 +84,21 @@ export default function AtividadesPage() {
   const [acaoLoadingId, setAcaoLoadingId] = useState<string | null>(null);
   const [acaoDeletingId, setAcaoDeletingId] = useState<string | null>(null);
 
-  // Ação modal
+  // Nova ação modal
   const [acaoModalOpen, setAcaoModalOpen] = useState(false);
   const [acaoAtividadeId, setAcaoAtividadeId] = useState<string | null>(null);
   const [acaoForm, setAcaoForm] = useState({ descricao: "", dataOcorrido: "" });
   const [acaoFiles, setAcaoFiles] = useState<UploadedFile[]>([]);
   const [acaoSubmitting, setAcaoSubmitting] = useState(false);
+
+  // Editar ação modal
+  const [editAcaoModalOpen, setEditAcaoModalOpen] = useState(false);
+  const [editAcaoTarget, setEditAcaoTarget] = useState<AcaoAtividade | null>(null);
+  const [editAcaoAtividadeId, setEditAcaoAtividadeId] = useState<string | null>(null);
+  const [editAcaoForm, setEditAcaoForm] = useState({ descricao: "", dataOcorrido: "" });
+  const [editAcaoNewFiles, setEditAcaoNewFiles] = useState<UploadedFile[]>([]);
+  const [editAcaoSubmitting, setEditAcaoSubmitting] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
   const toast = useToast();
   const { user } = useAuth();
@@ -336,6 +345,91 @@ export default function AtividadesPage() {
     setAcaoSubmitting(false);
   }
 
+  function openEditAcao(atividadeId: string, acao: AcaoAtividade) {
+    setEditAcaoAtividadeId(atividadeId);
+    setEditAcaoTarget(acao);
+    setEditAcaoForm({
+      descricao: acao.descricao,
+      dataOcorrido: acao.dataOcorrido.slice(0, 10),
+    });
+    setEditAcaoNewFiles([]);
+    setEditAcaoModalOpen(true);
+  }
+
+  async function handleEditAcaoSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editAcaoTarget || !editAcaoAtividadeId) return;
+    setEditAcaoSubmitting(true);
+    try {
+      const patchRes = await fetch(
+        `/api/atividades/${editAcaoAtividadeId}/acoes/${editAcaoTarget.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(editAcaoForm),
+        }
+      );
+      if (!patchRes.ok) {
+        const d = await patchRes.json();
+        toast("error", d.error || "Erro ao salvar ação");
+        return;
+      }
+
+      if (editAcaoNewFiles.length > 0) {
+        await fetch(
+          `/api/atividades/${editAcaoAtividadeId}/acoes/${editAcaoTarget.id}/documentos`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ documentos: editAcaoNewFiles }),
+          }
+        );
+      }
+
+      // Reload ações from server to reflect all changes
+      await loadAcoes(editAcaoAtividadeId);
+      toast("success", "Ação atualizada!");
+      setEditAcaoModalOpen(false);
+      setEditAcaoNewFiles([]);
+    } catch {
+      toast("error", "Erro ao atualizar ação");
+    } finally {
+      setEditAcaoSubmitting(false);
+    }
+  }
+
+  async function deleteAcaoDoc(atividadeId: string, acaoId: string, docId: string) {
+    setDeletingDocId(docId);
+    try {
+      const res = await fetch(
+        `/api/atividades/${atividadeId}/acoes/${acaoId}/documentos?docId=${docId}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) {
+        // Remove from edit modal state
+        setEditAcaoTarget(prev =>
+          prev ? { ...prev, documentos: prev.documentos.filter(d => d.id !== docId) } : prev
+        );
+        // Remove from ações list state
+        setAcoesPorAtividade(prev => ({
+          ...prev,
+          [atividadeId]: (prev[atividadeId] || []).map(a =>
+            a.id === acaoId
+              ? { ...a, documentos: a.documentos.filter(d => d.id !== docId) }
+              : a
+          ),
+        }));
+        toast("success", "Documento removido");
+      } else {
+        toast("error", "Erro ao remover documento");
+      }
+    } catch {
+      toast("error", "Erro ao remover documento");
+    } finally {
+      setDeletingDocId(null);
+    }
+  }
+
   async function deleteAcao(atividadeId: string, acaoId: string) {
     setAcaoDeletingId(acaoId);
     try {
@@ -563,18 +657,27 @@ export default function AtividadesPage() {
                                   </div>
                                 )}
                               </div>
-                              <button
-                                onClick={() => deleteAcao(a.id, acao.id)}
-                                disabled={acaoDeletingId === acao.id}
-                                className="text-[var(--text-muted)] hover:text-red-500 transition-colors shrink-0 disabled:opacity-40"
-                                title="Remover ação"
-                              >
-                                {acaoDeletingId === acao.id ? (
-                                  <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <Trash2 size={12} />
-                                )}
-                              </button>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  onClick={() => openEditAcao(a.id, acao)}
+                                  className="text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors"
+                                  title="Editar ação"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                                <button
+                                  onClick={() => deleteAcao(a.id, acao.id)}
+                                  disabled={acaoDeletingId === acao.id}
+                                  className="text-[var(--text-muted)] hover:text-red-500 transition-colors disabled:opacity-40"
+                                  title="Remover ação"
+                                >
+                                  {acaoDeletingId === acao.id ? (
+                                    <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Trash2 size={12} />
+                                  )}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -662,7 +765,106 @@ export default function AtividadesPage() {
         </form>
       </Modal>
 
-      {/* Ação modal */}
+      {/* Editar ação modal */}
+      <Modal
+        open={editAcaoModalOpen}
+        onClose={() => setEditAcaoModalOpen(false)}
+        title="Editar Ação Realizada"
+        size="lg"
+      >
+        <form onSubmit={handleEditAcaoSubmit} className="p-6 space-y-4">
+          <Input
+            label="Data da Ocorrência"
+            type="date"
+            value={editAcaoForm.dataOcorrido}
+            onChange={(e) => setEditAcaoForm(f => ({ ...f, dataOcorrido: e.target.value }))}
+            required
+          />
+          <Textarea
+            label="Descrição da Ação"
+            value={editAcaoForm.descricao}
+            onChange={(e) => setEditAcaoForm(f => ({ ...f, descricao: e.target.value }))}
+            rows={6}
+            placeholder="Descreva a ação realizada..."
+            required
+          />
+
+          {/* Documentos existentes */}
+          {editAcaoTarget && editAcaoTarget.documentos.length > 0 && (
+            <div>
+              <label className="text-sm font-medium text-[var(--text-secondary)] block mb-2">
+                Documentos anexados
+              </label>
+              <div className="space-y-1.5">
+                {editAcaoTarget.documentos.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between gap-2 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText size={13} className="text-[var(--accent-primary)] shrink-0" />
+                      <span className="text-xs text-[var(--text-primary)] truncate">{doc.nomeOriginal}</span>
+                      <span className="text-[10px] text-[var(--text-muted)] shrink-0">{doc.mimeType}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => editAcaoAtividadeId && editAcaoTarget &&
+                        deleteAcaoDoc(editAcaoAtividadeId, editAcaoTarget.id, doc.id)}
+                      disabled={deletingDocId === doc.id}
+                      className="text-[var(--text-muted)] hover:text-red-500 transition-colors shrink-0 disabled:opacity-40"
+                      title="Remover documento"
+                    >
+                      {deletingDocId === doc.id
+                        ? <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin" />
+                        : <Trash2 size={13} />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Novos documentos */}
+          <div>
+            <label className="text-sm font-medium text-[var(--text-secondary)] block mb-2">
+              Adicionar novos documentos / imagens
+            </label>
+            <p className="text-xs text-[var(--text-muted)] mb-2">
+              Cole imagens com Ctrl+V ou arraste arquivos (PDF, JPG, PNG…).
+            </p>
+            <FileUpload
+              onUpload={(files) => setEditAcaoNewFiles(f => [...f, ...files])}
+              maxFiles={20}
+            />
+            {editAcaoNewFiles.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {editAcaoNewFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-1.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg px-2 py-1 text-xs">
+                    <FileText size={10} className="text-[var(--accent-primary)]" />
+                    <span className="text-[var(--text-secondary)] truncate max-w-[150px]">{f.nomeOriginal}</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditAcaoNewFiles(prev => prev.filter((_, j) => j !== i))}
+                      className="text-[var(--text-muted)] hover:text-red-500 ml-1"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" type="button" onClick={() => setEditAcaoModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" loading={editAcaoSubmitting} icon={<Pencil size={14} />}>
+              Salvar Alterações
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Nova ação modal */}
       <Modal
         open={acaoModalOpen}
         onClose={() => setAcaoModalOpen(false)}

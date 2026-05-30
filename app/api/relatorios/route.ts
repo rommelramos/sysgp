@@ -189,16 +189,19 @@ function renderEvidencias(documentos: DocRow[]): string {
     if (dataUri) {
       return `
         <div class="evidencia">
-          <p class="ev-label">📷 Evidência — ${doc.nomeOriginal}</p>
+          <p class="ev-label">📷 Imagem — ${doc.nomeOriginal}</p>
           <img src="${dataUri}"
                alt="${doc.nomeOriginal}"
                style="max-width:100%; max-height:480px; display:block; border:1px solid #E5E7EB; border-radius:4px; margin-top:4px;" />
         </div>`;
     }
+    const isImage = doc.mimeType.startsWith("image/");
     const isPdf = doc.mimeType === "application/pdf";
+    const icon = isImage ? "🖼️" : isPdf ? "📄" : "📎";
+    const label = isImage ? "Imagem" : isPdf ? "Documento PDF" : "Anexo";
     return `
       <div class="evidencia">
-        <p class="ev-label">${isPdf ? "📄" : "📎"} Documento em anexo — ${doc.nomeOriginal}</p>
+        <p class="ev-label">${icon} ${label} — ${doc.nomeOriginal}</p>
       </div>`;
   }).join("");
 
