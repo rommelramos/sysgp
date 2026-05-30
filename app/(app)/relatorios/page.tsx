@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, Download } from "lucide-react";
+import { FileText, FileDown, Globe } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
 import { Input } from "@/components/ui/Input";
@@ -21,6 +21,7 @@ export default function RelatoriosPage() {
   const [selectedMembros, setSelectedMembros] = useState<string[]>([]);
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
+  const [formato, setFormato] = useState<"HTML" | "PDF">("PDF");
   const [loading, setLoading] = useState(false);
   const toast = useToast();
   const { user } = useAuth();
@@ -62,21 +63,21 @@ export default function RelatoriosPage() {
       const res = await fetch("/api/relatorios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projetoId, usuarioIds: selectedMembros, dataInicio, dataFim }),
+        body: JSON.stringify({ projetoId, usuarioIds: selectedMembros, dataInicio, dataFim, formato }),
       });
       if (!res.ok) {
         const data = await res.json();
         toast("error", data.error || "Erro ao gerar relatório");
         return;
       }
-      const blob = await res.blob();
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `relatorio_${projetoId}_${dataInicio}_${dataFim}.html`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast("success", "Relatório gerado com sucesso!");
+      // Open in new tab; for PDF format the page auto-triggers print dialog
+      window.open(url, "_blank");
+      // Revoke after enough time for the new tab to load
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      toast("success", formato === "PDF" ? "Relatório aberto — use Ctrl+P para salvar como PDF" : "Relatório gerado!");
     } catch {
       toast("error", "Erro ao gerar relatório");
     } finally {
@@ -146,13 +147,50 @@ export default function RelatoriosPage() {
           </div>
         )}
 
+        {/* Format selector */}
+        <div>
+          <p className="text-sm font-medium text-[var(--text-secondary)] mb-2">Formato de saída</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(["PDF", "HTML"] as const).map((fmt) => {
+              const active = formato === fmt;
+              return (
+                <button
+                  key={fmt}
+                  type="button"
+                  onClick={() => setFormato(fmt)}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border text-sm font-medium transition-all
+                    ${active
+                      ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white shadow-sm"
+                      : "bg-[var(--bg-elevated)] border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
+                    }`}
+                >
+                  {fmt === "PDF"
+                    ? <FileDown size={15} />
+                    : <Globe size={15} />}
+                  {fmt === "PDF" ? "PDF" : "HTML"}
+                  {fmt === "PDF" && (
+                    <span className={`text-[10px] font-normal ml-0.5 ${active ? "text-blue-100" : "text-[var(--text-muted)]"}`}>
+                      (Ctrl+P)
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-[var(--text-muted)] mt-1.5">
+            {formato === "PDF"
+              ? "Abre o relatório e exibe automaticamente o diálogo de impressão para salvar como PDF."
+              : "Abre o relatório como página HTML em nova aba — pode salvar o arquivo ou imprimir manualmente."}
+          </p>
+        </div>
+
         <Button
           onClick={gerarRelatorio}
           loading={loading}
-          icon={<Download size={16} />}
+          icon={formato === "PDF" ? <FileDown size={16} /> : <Globe size={16} />}
           className="w-full"
         >
-          Gerar Relatório
+          {formato === "PDF" ? "Gerar PDF" : "Gerar HTML"}
         </Button>
       </div>
     </div>

@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 });
 
   const { projetoId, usuarioIds, dataInicio, dataFim } = parsed.data;
+  const formato: "HTML" | "PDF" = (body as Record<string, unknown>).formato === "HTML" ? "HTML" : "PDF";
 
   if (session.perfil === "MEMBRO") {
     if (usuarioIds.length > 1 || usuarioIds[0] !== session.id)
@@ -73,12 +74,20 @@ export async function POST(req: NextRequest) {
   // ── Merge activities with the same title ────────────────────────────
   const merged = mergeAtividades(atividades);
 
-  const html = gerarHTMLRelatorio({
+  let html = gerarHTMLRelatorio({
     projeto: { ...projeto, coordenadorNome: projeto.coordenador.nomeCompleto },
     membros,
     atividades: merged,
     periodo: { inicio: dataInicio, fim: dataFim },
   });
+
+  // For PDF format: inject auto-print script so the browser opens the print dialog immediately
+  if (formato === "PDF") {
+    html = html.replace(
+      "</body>",
+      `<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},600);});</script></body>`
+    );
+  }
 
   await registrarAuditoria({
     usuarioId: BigInt(session.id),
