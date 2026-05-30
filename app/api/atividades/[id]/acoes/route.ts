@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { bigintToString } from "@/lib/utils";
@@ -18,6 +20,17 @@ const acaoSchema = z.object({
   })).optional().default([]),
 });
 
+/** Read file bytes from the uploads directory (best-effort). */
+function lerConteudo(caminho: string): Buffer | null {
+  try {
+    const filePath = join(process.cwd(), caminho.startsWith("/") ? caminho.slice(1) : caminho);
+    if (!existsSync(filePath)) return null;
+    return readFileSync(filePath);
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
@@ -34,7 +47,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const acoes = await prisma.acaoAtividade.findMany({
     where: { atividadeId: BigInt(id) },
-    include: { documentos: true },
+    include: {
+      documentos: {
+        select: {
+          id: true, nomeOriginal: true, nomeArquivo: true,
+          caminho: true, mimeType: true, tamanhoBytes: true, origem: true, createdAt: true,
+          // Exclude conteudo from list responses (large binary)
+        },
+      },
+    },
     orderBy: { dataOcorrido: "asc" },
   });
 
@@ -65,27 +86,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { descricao, dataOcorrido, documentos } = parsed.data;
 
+  // Create the action first
   const acao = await prisma.acaoAtividade.create({
-    data: {
-      atividadeId,
-      descricao,
-      dataOcorrido: new Date(dataOcorrido),
-      ...(documentos.length > 0 && {
-        documentos: {
-          createMany: {
-            data: documentos.map((d) => ({
-              nomeOriginal: d.nomeOriginal,
-              nomeArquivo: d.nomeArquivo,
-              caminho: d.caminho,
-              mimeType: d.mimeType,
-              tamanhoBytes: d.tamanhoBytes,
-              origem: d.origem,
-            })),
+    data: { atividadeId, descricao, dataOcorrido: new Date(dataOcorrido) },
+  });
+
+  // Create each document individually so we can include file content from disk
+  if (documentos.length > 0) {
+    await Promise.all(
+      documentos.map((d) => {
+        const conteudo = lerConteudo(d.caminho);
+        return prisma.acaoDocumento.create({
+          data: {
+            acaoId: acao.id,
+            nomeOriginal: d.nomeOriginal,
+            nomeArquivo: d.nomeArquivo,
+            caminho: d.caminho,
+            mimeType: d.mimeType,
+            tamanhoBytes: d.tamanhoBytes,
+            origem: d.origem,
+            ...(conteudo ? { conteudo } : {}),
           },
+        });
+      })
+    );
+  }
+
+  const acaoComDocs = await prisma.acaoAtividade.findUnique({
+    where: { id: acao.id },
+    include: {
+      documentos: {
+        select: {
+          id: true, nomeOriginal: true, nomeArquivo: true,
+          caminho: true, mimeType: true, tamanhoBytes: true, origem: true, createdAt: true,
         },
-      }),
+      },
     },
-    include: { documentos: true },
   });
 
   await registrarAuditoria({
@@ -96,5 +132,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ipAddress: extrairIP(req),
   });
 
-  return NextResponse.json(bigintToString(acao), { status: 201 });
+  return NextResponse.json(bigintToString(acaoComDocs), { status: 201 });
 }
