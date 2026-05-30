@@ -109,7 +109,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             mimeType: d.mimeType,
             tamanhoBytes: d.tamanhoBytes,
             origem: d.origem,
-            ...(conteudo ? { conteudo } : {}),
+            ...(conteudo ? { conteudo: conteudo as unknown as Uint8Array<ArrayBuffer> } : {}),
           },
         });
       })
