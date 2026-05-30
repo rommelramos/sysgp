@@ -171,6 +171,16 @@ const C_GREEN = rgb(0.024, 0.369, 0.275);
 const C_LGRN  = rgb(0.820, 0.980, 0.898);
 const C_WHITE = rgb(1, 1, 1);
 
+/**
+ * Strip characters outside the WinAnsi (Windows-1252) range so pdf-lib
+ * standard fonts (Helvetica/Times) never throw "WinAnsi cannot encode X".
+ * Portuguese accented letters (ã, ç, ê, …) are safely inside 0x00–0xFF.
+ */
+function sanitize(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/[^\x00-\xFF]/g, "");
+}
+
 /** Layout context — y is "from top of page" */
 interface Ctx {
   doc: PDFDocument;
@@ -203,6 +213,7 @@ function gap(ctx: Ctx, pts: number): void { ctx.y += pts; }
 
 /** Wrap text into lines that fit within maxW */
 function wrap(text: string, font: PDFFont, size: number, maxW: number): string[] {
+  text = sanitize(text);
   const lines: string[] = [];
   for (const para of text.split("\n")) {
     if (!para.trim()) { lines.push(""); continue; }
@@ -223,7 +234,7 @@ function wrap(text: string, font: PDFFont, size: number, maxW: number): string[]
 
 /** Draw single-line text at ctx.y, optionally advance */
 function drawLine(ctx: Ctx, text: string, x: number, size: number, font: PDFFont, color = C_DARK, advance = true): void {
-  ctx.page.drawText(text, { x, y: py(ctx.y, size), size, font, color });
+  ctx.page.drawText(sanitize(text), { x, y: py(ctx.y, size), size, font, color });
   if (advance) ctx.y += size * 1.45;
 }
 
@@ -341,11 +352,11 @@ async function gerarPDF({
     // Cell 0
     drawRect(ctx, x0, cw, ch, C_LBLUE, C_BBLUE);
     ctx.page.drawText(lbl0, { x: x0 + 8, y: ry(ctx.y, ch) + ch - 14, size: 8, font: ctx.regular, color: C_GRAY });
-    ctx.page.drawText(val0.slice(0, 35), { x: x0 + 8, y: ry(ctx.y, ch) + 8, size: 10, font: ctx.bold, color: C_DARK });
+    ctx.page.drawText(sanitize(val0).slice(0, 35), { x: x0 + 8, y: ry(ctx.y, ch) + 8, size: 10, font: ctx.bold, color: C_DARK });
     // Cell 1
     drawRect(ctx, x1, cw, ch, C_LBLUE, C_BBLUE);
     ctx.page.drawText(lbl1, { x: x1 + 8, y: ry(ctx.y, ch) + ch - 14, size: 8, font: ctx.regular, color: C_GRAY });
-    ctx.page.drawText(val1.slice(0, 35), { x: x1 + 8, y: ry(ctx.y, ch) + 8, size: 10, font: ctx.bold, color: C_DARK });
+    ctx.page.drawText(sanitize(val1).slice(0, 35), { x: x1 + 8, y: ry(ctx.y, ch) + 8, size: 10, font: ctx.bold, color: C_DARK });
     ctx.y += ch + 4;
   }
   gap(ctx, 10);
@@ -379,8 +390,8 @@ async function gerarPDF({
     const rowH = Math.max(18, metasLines.length * 13 + 6);
     ensure(ctx, rowH + 2);
     ctx.page.drawLine({ start: { x: ML, y: ry(ctx.y, 0) }, end: { x: PW - MR, y: ry(ctx.y, 0) }, thickness: 0.3, color: C_BBLUE });
-    ctx.page.drawText(m.usuario.nomeCompleto.slice(0, 40), { x: ML + 6, y: ry(ctx.y, rowH) + rowH - 13, size: 9, font: ctx.bold, color: C_DARK });
-    ctx.page.drawText(m.funcao || "—", { x: ML + colW[0] + 6, y: ry(ctx.y, rowH) + rowH - 13, size: 9, font: ctx.regular, color: C_GRAY });
+    ctx.page.drawText(sanitize(m.usuario.nomeCompleto).slice(0, 40), { x: ML + 6, y: ry(ctx.y, rowH) + rowH - 13, size: 9, font: ctx.bold, color: C_DARK });
+    ctx.page.drawText(sanitize(m.funcao || "-"), { x: ML + colW[0] + 6, y: ry(ctx.y, rowH) + rowH - 13, size: 9, font: ctx.regular, color: C_GRAY });
     let my = ry(ctx.y, rowH) + rowH - 13;
     for (const ml of metasLines) {
       ctx.page.drawText(ml, { x: ML + colW[0] + colW[1] + 6, y: my, size: 9, font: ctx.regular, color: C_GRAY });
@@ -482,18 +493,18 @@ async function gerarPDF({
             if (isImage) {
               // Embed image inline
               ensure(ctx, 20);
-              drawLine(ctx, `📷  ${doc.nomeOriginal}`, ML + 12, 8, ctx.regular, C_GRAY);
+              drawLine(ctx, `[Imagem] ${doc.nomeOriginal}`, ML + 12, 8, ctx.regular, C_GRAY);
               await embedImage(ctx, doc);
               gap(ctx, 4);
             } else if (isPdf) {
               // PDF: show label inline; pages will be appended at the end
               ensure(ctx, 14);
-              drawLine(ctx, `📄  ${doc.nomeOriginal}  [ver páginas em anexo]`, ML + 12, 8, ctx.regular, C_GRAY);
-              pdfAttachmentsToMerge.push({ title: `${a.titulo} — Ação ${acIdx + 1}`, nomeOriginal: doc.nomeOriginal, caminho: doc.caminho, conteudo: doc.conteudo });
+              drawLine(ctx, `[PDF] ${doc.nomeOriginal}  (ver paginas em anexo)`, ML + 12, 8, ctx.regular, C_GRAY);
+              pdfAttachmentsToMerge.push({ title: `${a.titulo} - Acao ${acIdx + 1}`, nomeOriginal: doc.nomeOriginal, caminho: doc.caminho, conteudo: doc.conteudo });
               gap(ctx, 2);
             } else {
               ensure(ctx, 14);
-              drawLine(ctx, `📎  ${doc.nomeOriginal}`, ML + 12, 8, ctx.regular, C_GRAY);
+              drawLine(ctx, `[Arquivo] ${doc.nomeOriginal}`, ML + 12, 8, ctx.regular, C_GRAY);
               gap(ctx, 2);
             }
           }
@@ -526,8 +537,8 @@ async function gerarPDF({
         const coverPage = doc.addPage([PW, PH]);
         coverPage.drawRectangle({ x: 0, y: PH - 80, width: PW, height: 80, color: C_BLUE });
         coverPage.drawText("ANEXO — DOCUMENTO COMPROBATÓRIO", { x: ML, y: PH - 36, size: 14, font: ctx.bold, color: C_WHITE });
-        coverPage.drawText(att.title, { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
-        coverPage.drawText(att.nomeOriginal, { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
+        coverPage.drawText(sanitize(att.title), { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
+        coverPage.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
         // Copy all pages from the attachment
         const copiedPages = await doc.copyPages(srcDoc, indices);
         copiedPages.forEach(p => doc.addPage(p));
