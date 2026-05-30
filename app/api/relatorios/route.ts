@@ -40,23 +40,41 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const atividades = await prisma.atividade.findMany({
-    where: {
-      projetoId: BigInt(projetoId),
-      usuarioId: { in: usuarioIds.map(BigInt) },
-      dataInicio: { gte: new Date(dataInicio), lte: new Date(dataFim) },
-    },
-    include: {
-      usuario: { select: { nomeCompleto: true } },
-      meta: { select: { descricao: true, ordem: true } },
-      documentos: { select: { nomeOriginal: true, mimeType: true } },
-      acoes: {
-        include: { documentos: { select: { nomeOriginal: true, mimeType: true } } },
-        orderBy: { dataOcorrido: "asc" },
+  const atividadeWhere = {
+    projetoId: BigInt(projetoId),
+    usuarioId: { in: usuarioIds.map(BigInt) },
+    dataInicio: { gte: new Date(dataInicio), lte: new Date(dataFim) },
+  };
+  const atividadeOrder = [{ usuario: { nomeCompleto: "asc" as const } }, { dataInicio: "asc" as const }];
+
+  let atividades: AtividadeRow[];
+  try {
+    atividades = await prisma.atividade.findMany({
+      where: atividadeWhere,
+      include: {
+        usuario: { select: { nomeCompleto: true } },
+        meta: { select: { descricao: true, ordem: true } },
+        documentos: { select: { nomeOriginal: true, mimeType: true } },
+        acoes: {
+          include: { documentos: { select: { nomeOriginal: true, mimeType: true } } },
+          orderBy: { dataOcorrido: "asc" },
+        },
       },
-    },
-    orderBy: [{ usuario: { nomeCompleto: "asc" } }, { dataInicio: "asc" }],
-  });
+      orderBy: atividadeOrder,
+    }) as AtividadeRow[];
+  } catch {
+    // Tabela acoes_atividade ainda não migrada — retry sem ações
+    const rows = await prisma.atividade.findMany({
+      where: atividadeWhere,
+      include: {
+        usuario: { select: { nomeCompleto: true } },
+        meta: { select: { descricao: true, ordem: true } },
+        documentos: { select: { nomeOriginal: true, mimeType: true } },
+      },
+      orderBy: atividadeOrder,
+    });
+    atividades = rows.map((r) => ({ ...r, acoes: [] })) as AtividadeRow[];
+  }
 
   const html = gerarHTMLRelatorio({
     projeto: { ...projeto, coordenadorNome: projeto.coordenador.nomeCompleto },
