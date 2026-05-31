@@ -204,6 +204,8 @@ model AcaoDocumento {
   tamanhoBytes Int             @map("tamanho_bytes")
   origem       OrigemDocumento @default(UPLOAD)
   conteudo     Bytes?          @db.LongBlob
+  rotulo       String?         @db.VarChar(255)
+  detalhe      String?         @db.Text
   createdAt    DateTime        @default(now()) @map("created_at")
 
   acao AcaoAtividade @relation(fields: [acaoId], references: [id], onDelete: Cascade)

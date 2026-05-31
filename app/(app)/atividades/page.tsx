@@ -29,6 +29,8 @@ interface AcaoDocumento {
   id: string;
   nomeOriginal: string;
   mimeType: string;
+  rotulo?: string | null;
+  detalhe?: string | null;
 }
 
 interface AcaoAtividade {
@@ -649,7 +651,7 @@ export default function AtividadesPage() {
                                     <FileText size={10} />
                                     <span>{acao.documentos.length} documento(s) anexado(s)</span>
                                     <span className="text-[var(--text-muted)]">
-                                      ({acao.documentos.map(d => d.nomeOriginal).join(", ")})
+                                      ({acao.documentos.map(d => d.rotulo || d.nomeOriginal).join(", ")})
                                     </span>
                                   </div>
                                 )}
@@ -838,16 +840,27 @@ export default function AtividadesPage() {
               maxFiles={20}
             />
             {editAcaoNewFiles.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="mt-3 space-y-2">
                 {editAcaoNewFiles.map((f, i) => (
-                  <div key={i} className="flex items-center gap-1.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg px-2 py-1 text-xs">
-                    <FileText size={10} className="text-[var(--accent-primary)]" />
-                    <span className="text-[var(--text-secondary)] truncate max-w-[150px]">{f.nomeOriginal}</span>
-                    <button
-                      type="button"
-                      onClick={() => setEditAcaoNewFiles(prev => prev.filter((_, j) => j !== i))}
-                      className="text-[var(--text-muted)] hover:text-red-500 ml-1"
-                    >×</button>
+                  <div key={i} className="border border-[var(--border)] rounded-none p-3 space-y-2 bg-[var(--bg-elevated)]">
+                    <div className="flex items-center gap-2">
+                      <FileText size={12} className="text-[var(--accent-primary)] shrink-0" />
+                      <span className="text-xs text-[var(--text-secondary)] truncate flex-1">{f.nomeOriginal}</span>
+                      <button type="button" onClick={() => setEditAcaoNewFiles(prev => prev.filter((_, j) => j !== i))} className="text-[var(--text-muted)] hover:text-red-500 text-sm leading-none">×</button>
+                    </div>
+                    <Input
+                      label="Rótulo (título no relatório)"
+                      value={f.rotulo || ""}
+                      onChange={(e) => setEditAcaoNewFiles(prev => prev.map((file, j) => j === i ? { ...file, rotulo: e.target.value } : file))}
+                      placeholder={f.nomeOriginal}
+                    />
+                    <Textarea
+                      label="Detalhe / legenda"
+                      value={f.detalhe || ""}
+                      onChange={(e) => setEditAcaoNewFiles(prev => prev.map((file, j) => j === i ? { ...file, detalhe: e.target.value } : file))}
+                      rows={2}
+                      placeholder="Descreva o conteúdo deste arquivo..."
+                    />
                   </div>
                 ))}
               </div>
@@ -939,16 +952,27 @@ export default function AtividadesPage() {
               maxFiles={20}
             />
             {acaoFiles.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="mt-3 space-y-2">
                 {acaoFiles.map((f, i) => (
-                  <div key={i} className="flex items-center gap-1.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg px-2 py-1 text-xs">
-                    <FileText size={10} className="text-[var(--accent-primary)]" />
-                    <span className="text-[var(--text-secondary)] truncate max-w-[150px]">{f.nomeOriginal}</span>
-                    <button
-                      type="button"
-                      onClick={() => setAcaoFiles(prev => prev.filter((_, j) => j !== i))}
-                      className="text-[var(--text-muted)] hover:text-red-500 ml-1"
-                    >×</button>
+                  <div key={i} className="border border-[var(--border)] rounded-none p-3 space-y-2 bg-[var(--bg-elevated)]">
+                    <div className="flex items-center gap-2">
+                      <FileText size={12} className="text-[var(--accent-primary)] shrink-0" />
+                      <span className="text-xs text-[var(--text-secondary)] truncate flex-1">{f.nomeOriginal}</span>
+                      <button type="button" onClick={() => setAcaoFiles(prev => prev.filter((_, j) => j !== i))} className="text-[var(--text-muted)] hover:text-red-500 text-sm leading-none">×</button>
+                    </div>
+                    <Input
+                      label="Rótulo (título no relatório)"
+                      value={f.rotulo || ""}
+                      onChange={(e) => setAcaoFiles(prev => prev.map((file, j) => j === i ? { ...file, rotulo: e.target.value } : file))}
+                      placeholder={f.nomeOriginal}
+                    />
+                    <Textarea
+                      label="Detalhe / legenda"
+                      value={f.detalhe || ""}
+                      onChange={(e) => setAcaoFiles(prev => prev.map((file, j) => j === i ? { ...file, detalhe: e.target.value } : file))}
+                      rows={2}
+                      placeholder="Descreva o conteúdo deste arquivo..."
+                    />
                   </div>
                 ))}
               </div>

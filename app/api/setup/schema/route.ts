@@ -200,6 +200,8 @@ const CREATE_STATEMENTS = [
     tamanho_bytes INT NOT NULL,
     origem ENUM('UPLOAD','PASTE') NOT NULL DEFAULT 'UPLOAD',
     conteudo LONGBLOB NULL,
+    rotulo VARCHAR(255) NULL,
+    detalhe TEXT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,

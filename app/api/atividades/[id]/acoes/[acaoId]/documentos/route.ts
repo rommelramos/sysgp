@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (session.perfil === "MEMBRO" && String(acao.atividade.usuarioId) !== session.id)
     return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
 
-  let body: { documentos: Array<{ nomeOriginal: string; nomeArquivo: string; caminho: string; mimeType: string; tamanhoBytes: number; origem: "UPLOAD" | "PASTE"; conteudoBase64?: string }> };
+  let body: { documentos: Array<{ nomeOriginal: string; nomeArquivo: string; caminho: string; mimeType: string; tamanhoBytes: number; origem: "UPLOAD" | "PASTE"; conteudoBase64?: string; rotulo?: string; detalhe?: string }> };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Requisição inválida" }, { status: 400 }); }
 
   // Priority: base64 sent by client (works on Vercel) → file on disk (self-hosted fallback).
@@ -49,11 +49,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           mimeType: d.mimeType,
           tamanhoBytes: d.tamanhoBytes,
           origem: d.origem,
+          rotulo: d.rotulo || null,
+          detalhe: d.detalhe || null,
           ...(conteudo ? { conteudo: conteudo as unknown as Uint8Array<ArrayBuffer> } : {}),
         },
         select: {
           id: true, nomeOriginal: true, nomeArquivo: true,
           caminho: true, mimeType: true, tamanhoBytes: true, origem: true, createdAt: true,
+          rotulo: true, detalhe: true,
         },
       });
     })
