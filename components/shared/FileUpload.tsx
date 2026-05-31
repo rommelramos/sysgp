@@ -15,6 +15,8 @@ export interface UploadedFile {
   tamanhoBytes: number;
   origem: "UPLOAD" | "PASTE";
   conteudoBase64?: string; // base64 content for direct DB storage (no filesystem dependency)
+  rotulo?: string;
+  detalhe?: string;
 }
 
 interface FileUploadProps {

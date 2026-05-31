@@ -18,6 +18,8 @@ const acaoSchema = z.object({
     tamanhoBytes: z.number(),
     origem: z.enum(["UPLOAD", "PASTE"]).default("UPLOAD"),
     conteudoBase64: z.string().optional(), // base64 content from upload API
+    rotulo: z.string().optional(),
+    detalhe: z.string().optional(),
   })).optional().default([]),
 });
 
@@ -53,6 +55,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         select: {
           id: true, nomeOriginal: true, nomeArquivo: true,
           caminho: true, mimeType: true, tamanhoBytes: true, origem: true, createdAt: true,
+          rotulo: true, detalhe: true,
           // Exclude conteudo from list responses (large binary)
         },
       },
@@ -109,6 +112,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             mimeType: d.mimeType,
             tamanhoBytes: d.tamanhoBytes,
             origem: d.origem,
+            rotulo: d.rotulo || null,
+            detalhe: d.detalhe || null,
             ...(conteudo ? { conteudo: conteudo as unknown as Uint8Array<ArrayBuffer> } : {}),
           },
         });
@@ -123,6 +128,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         select: {
           id: true, nomeOriginal: true, nomeArquivo: true,
           caminho: true, mimeType: true, tamanhoBytes: true, origem: true, createdAt: true,
+          rotulo: true, detalhe: true,
         },
       },
     },

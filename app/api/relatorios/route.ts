@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
         meta: { select: { descricao: true, ordem: true } },
         acoes: {
           include: {
-            documentos: { select: { nomeOriginal: true, mimeType: true, caminho: true, conteudo: true } },
+            documentos: { select: { nomeOriginal: true, mimeType: true, caminho: true, conteudo: true, rotulo: true, detalhe: true } },
           },
           orderBy: { dataOcorrido: "asc" },
         },
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
 
 // ── Types ─────────────────────────────────────────────────────────────
 
-type DocRow = { nomeOriginal: string; mimeType: string; caminho: string; conteudo: Buffer | null };
+type DocRow = { nomeOriginal: string; mimeType: string; caminho: string; conteudo: Buffer | null; rotulo: string | null; detalhe: string | null };
 type AcaoRow = { dataOcorrido: Date; descricao: string; documentos: DocRow[] };
 type AtividadeRow = {
   titulo: string;
@@ -547,8 +547,8 @@ async function gerarPDF({
   }
 
   // Collect attachments to append as annex pages at the end
-  const pdfAttachmentsToMerge: Array<{ title: string; nomeOriginal: string; caminho: string; conteudo: Buffer | null }> = [];
-  const imageAttachments: Array<{ title: string; nomeOriginal: string; mimeType: string; caminho: string; conteudo: Buffer | null }> = [];
+  const pdfAttachmentsToMerge: Array<{ title: string; nomeOriginal: string; caminho: string; conteudo: Buffer | null; rotulo: string | null; detalhe: string | null }> = [];
+  const imageAttachments: Array<{ title: string; nomeOriginal: string; mimeType: string; caminho: string; conteudo: Buffer | null; rotulo: string | null; detalhe: string | null }> = [];
 
   for (let ai = 0; ai < atividades.length; ai++) {
     const a = atividades[ai];
@@ -632,18 +632,18 @@ async function gerarPDF({
             if (isImage) {
               // Collect to annex — same treatment as PDFs
               ensure(ctx, 14);
-              drawLine(ctx, `[Imagem] ${doc.nomeOriginal}  (ver em anexo)`, ML + 12, 8, ctx.regular, C_GRAY);
-              imageAttachments.push({ title: `${a.titulo} - Acao ${acIdx + 1}`, nomeOriginal: doc.nomeOriginal, mimeType: doc.mimeType, caminho: doc.caminho, conteudo: doc.conteudo });
+              drawLine(ctx, `[Imagem] ${doc.rotulo || doc.nomeOriginal}  (ver em anexo)`, ML + 12, 8, ctx.regular, C_GRAY);
+              imageAttachments.push({ title: `${a.titulo} - Acao ${acIdx + 1}`, nomeOriginal: doc.nomeOriginal, mimeType: doc.mimeType, caminho: doc.caminho, conteudo: doc.conteudo, rotulo: doc.rotulo, detalhe: doc.detalhe });
               gap(ctx, 2);
             } else if (isPdf) {
               // PDF: show label inline; pages will be appended at the end
               ensure(ctx, 14);
-              drawLine(ctx, `[PDF] ${doc.nomeOriginal}  (ver paginas em anexo)`, ML + 12, 8, ctx.regular, C_GRAY);
-              pdfAttachmentsToMerge.push({ title: `${a.titulo} - Acao ${acIdx + 1}`, nomeOriginal: doc.nomeOriginal, caminho: doc.caminho, conteudo: doc.conteudo });
+              drawLine(ctx, `[PDF] ${doc.rotulo || doc.nomeOriginal}  (ver paginas em anexo)`, ML + 12, 8, ctx.regular, C_GRAY);
+              pdfAttachmentsToMerge.push({ title: `${a.titulo} - Acao ${acIdx + 1}`, nomeOriginal: doc.nomeOriginal, caminho: doc.caminho, conteudo: doc.conteudo, rotulo: doc.rotulo, detalhe: doc.detalhe });
               gap(ctx, 2);
             } else {
               ensure(ctx, 14);
-              drawLine(ctx, `[Arquivo] ${doc.nomeOriginal}`, ML + 12, 8, ctx.regular, C_GRAY);
+              drawLine(ctx, `[Arquivo] ${doc.rotulo || doc.nomeOriginal}`, ML + 12, 8, ctx.regular, C_GRAY);
               gap(ctx, 2);
             }
           }
@@ -702,14 +702,14 @@ async function gerarPDF({
     let nextAnnexPage = indexAnnexosPageNum + 1;
 
     for (const att of imageAttachments) {
-      tocAnexos.push({ title: att.nomeOriginal, page: nextAnnexPage });
+      tocAnexos.push({ title: att.rotulo || att.nomeOriginal, page: nextAnnexPage });
       const bytes = lerArquivo(att);
       nextAnnexPage += bytes ? 2 : 1; // cover + optional image page
     }
 
     // Pre-load PDFs once (avoids double loading)
     const cachedPdfs: Array<{
-      att: { title: string; nomeOriginal: string; caminho: string; conteudo: Buffer | null };
+      att: { title: string; nomeOriginal: string; caminho: string; conteudo: Buffer | null; rotulo: string | null; detalhe: string | null };
       srcDoc: PDFDocument;
     }> = [];
     for (const att of pdfAttachmentsToMerge) {
@@ -717,7 +717,7 @@ async function gerarPDF({
       if (!bytes) continue;
       try {
         const srcDoc = await PDFDocument.load(bytes);
-        tocAnexos.push({ title: att.nomeOriginal, page: nextAnnexPage });
+        tocAnexos.push({ title: att.rotulo || att.nomeOriginal, page: nextAnnexPage });
         nextAnnexPage += 1 + srcDoc.getPageCount(); // cover + content pages
         cachedPdfs.push({ att, srcDoc });
       } catch { /* skip corrupt or unreadable PDF */ }
@@ -734,14 +734,45 @@ async function gerarPDF({
       attCover.drawRectangle({ x: 0, y: PH - 80, width: PW, height: 80, color: C_BLUE });
       attCover.drawText("ANEXO — IMAGEM COMPROBATORIA", { x: ML, y: PH - 36, size: 14, font: ctx.bold, color: C_WHITE });
       attCover.drawText(sanitize(att.title), { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
-      attCover.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
+      if (att.rotulo && att.rotulo !== att.nomeOriginal) {
+        attCover.drawText(sanitize(att.rotulo), { x: ML, y: PH - 105, size: 12, font: ctx.bold, color: C_DARK });
+        attCover.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 122, size: 8, font: ctx.regular, color: C_GRAY });
+      } else {
+        attCover.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
+      }
+      if (att.detalhe) {
+        const detalheLines = wrap(att.detalhe, ctx.regular, 9, 350);
+        let detY = PH - 140;
+        for (const dl of detalheLines.slice(0, 4)) {
+          attCover.drawText(sanitize(dl), { x: ML, y: detY, size: 9, font: ctx.regular, color: C_GRAY });
+          detY -= 13;
+        }
+      }
       if (!bytes) {
         attCover.drawText("Arquivo nao disponivel no servidor (conteudo nao armazenado).", {
-          x: ML, y: PH - 140, size: 10, font: ctx.regular, color: C_GRAY,
+          x: ML, y: PH - 200, size: 10, font: ctx.regular, color: C_GRAY,
         });
       } else {
         const imgPage = doc.addPage([PW, PH]);
         await drawImageOnPage(imgPage, doc, bytes, att.mimeType, ctx.regular);
+        if (att.detalhe) {
+          const isPng  = att.mimeType === "image/png";
+          const isJpeg = att.mimeType === "image/jpeg" || att.mimeType === "image/jpg";
+          if (isPng || isJpeg) {
+            try {
+              const img = isPng ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+              const { width: iw, height: ih } = img.scale(1);
+              const maxW = UW;
+              const maxH = PH - 120;
+              const scale = Math.min(maxW / iw, maxH / ih, 1);
+              const dh = ih * scale;
+              const captionY = (PH - dh) / 2 - 18;
+              const captionText = sanitize(att.detalhe);
+              const captionW = ctx.regular.widthOfTextAtSize(captionText, 9);
+              imgPage.drawText(captionText, { x: (PW - captionW) / 2, y: captionY, size: 9, font: ctx.regular, color: C_GRAY });
+            } catch { /* skip if image can't be embedded again */ }
+          }
+        }
       }
     }
 
@@ -751,7 +782,20 @@ async function gerarPDF({
       attCover.drawRectangle({ x: 0, y: PH - 80, width: PW, height: 80, color: C_BLUE });
       attCover.drawText("ANEXO — DOCUMENTO COMPROBATORIO", { x: ML, y: PH - 36, size: 14, font: ctx.bold, color: C_WHITE });
       attCover.drawText(sanitize(att.title), { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
-      attCover.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
+      if (att.rotulo && att.rotulo !== att.nomeOriginal) {
+        attCover.drawText(sanitize(att.rotulo), { x: ML, y: PH - 105, size: 12, font: ctx.bold, color: C_DARK });
+        attCover.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 122, size: 8, font: ctx.regular, color: C_GRAY });
+      } else {
+        attCover.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
+      }
+      if (att.detalhe) {
+        const detalheLines = wrap(att.detalhe, ctx.regular, 9, 350);
+        let detY = PH - 140;
+        for (const dl of detalheLines.slice(0, 4)) {
+          attCover.drawText(sanitize(dl), { x: ML, y: detY, size: 9, font: ctx.regular, color: C_GRAY });
+          detY -= 13;
+        }
+      }
       const copiedPages = await doc.copyPages(srcDoc, srcDoc.getPageIndices());
       copiedPages.forEach(p => doc.addPage(p));
     }
