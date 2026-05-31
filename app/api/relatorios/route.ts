@@ -416,6 +416,51 @@ function drawTocPage(
   page.drawText("Página 2", { x: PW - MR - pg2W, y: 20, size: 8, font: regular, color: C_GRAY });
 }
 
+// ── Annex index (Índice de Anexos) page renderer ─────────────────────
+
+function drawAnexosIndexPage(
+  page: PDFPage,
+  entries: Array<{ title: string; page: number }>,
+  regular: PDFFont,
+  bold: PDFFont,
+  pageNum: number,
+): void {
+  // Compact header
+  page.drawRectangle({ x: ML, y: PH - MT, width: UW, height: 3, color: C_BLUE });
+  page.drawText("SysGP", { x: ML, y: PH - MT - 18, size: 10, font: bold, color: C_BLUE });
+  page.drawText("  —  Sistema Gerenciador de Projetos", {
+    x: ML + bold.widthOfTextAtSize("SysGP", 10),
+    y: PH - MT - 18, size: 8, font: regular, color: C_GRAY,
+  });
+  page.drawLine({ start: { x: ML, y: PH - MT - 26 }, end: { x: PW - MR, y: PH - MT - 26 }, thickness: 0.4, color: C_BBLUE });
+
+  // Heading
+  let y = MT + 44;
+  page.drawText("ÍNDICE DE ANEXOS", { x: ML, y: PH - y, size: 16, font: bold, color: C_BLUE });
+  y += 16 * 1.4;
+  page.drawLine({ start: { x: ML, y: PH - y + 4 }, end: { x: PW - MR, y: PH - y + 4 }, thickness: 1.5, color: C_BLUE });
+  y += 22;
+
+  // Entries
+  const dotW = regular.widthOfTextAtSize(".", 11);
+  for (const [idx, entry] of entries.entries()) {
+    const titleText = sanitize(`${idx + 1}. ${entry.title}`);
+    const pageStr   = String(entry.page);
+    const titleW    = regular.widthOfTextAtSize(titleText, 11);
+    const pageW     = bold.widthOfTextAtSize(pageStr, 11);
+    const nDots     = Math.max(3, Math.floor((UW - titleW - pageW - 16) / dotW));
+    page.drawText(titleText, { x: ML, y: PH - y, size: 11, font: regular, color: C_DARK });
+    page.drawText(".".repeat(nDots), { x: ML + titleW + 6, y: PH - y, size: 11, font: regular, color: C_GRAY });
+    page.drawText(pageStr, { x: PW - MR - pageW, y: PH - y, size: 11, font: bold, color: C_BLUE });
+    y += 11 * 2.4;
+  }
+
+  // Footer
+  page.drawText("SysGP — Sistema Gerenciador de Projetos", { x: ML, y: 20, size: 8, font: regular, color: C_GRAY });
+  const pgW = regular.widthOfTextAtSize(`Página ${pageNum}`, 8);
+  page.drawText(`Página ${pageNum}`, { x: PW - MR - pgW, y: 20, size: 8, font: regular, color: C_GRAY });
+}
+
 // ── Main report generator ─────────────────────────────────────────────
 
 async function gerarPDF({
@@ -643,52 +688,73 @@ async function gerarPDF({
   gap(ctx, 6);
   drawLine(ctx, `Gerado automaticamente em ${formatarData(new Date())} — SysGP`, ML, 8, ctx.regular, C_GRAY);
 
-  // Track annex start page (page numbers already final because cover+TOC offset was baked in from pageNum=3)
-  if (imageAttachments.length + pdfAttachmentsToMerge.length > 0) {
-    toc.push({
-      title: `Anexos (${imageAttachments.length + pdfAttachmentsToMerge.length} arquivo(s))`,
-      page: ctx.pageNum + 1,
-    });
-  }
+  // ── Índice de Anexos + Anexos ─────────────────────────────────────────
+  const totalAnexos = imageAttachments.length + pdfAttachmentsToMerge.length;
 
-  // ── Append image attachments ──────────────────────────────────────────
-  for (const att of imageAttachments) {
-    const bytes = lerArquivo(att);
-    // Cover page (always added so the annex list is complete even if image fails)
-    const coverPage = doc.addPage([PW, PH]);
-    coverPage.drawRectangle({ x: 0, y: PH - 80, width: PW, height: 80, color: C_BLUE });
-    coverPage.drawText("ANEXO — IMAGEM COMPROBATORIA", { x: ML, y: PH - 36, size: 14, font: ctx.bold, color: C_WHITE });
-    coverPage.drawText(sanitize(att.title), { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
-    coverPage.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
+  if (totalAnexos > 0) {
+    // Main TOC entry → points to the Índice de Anexos page
+    const indexAnnexosPageNum = ctx.pageNum + 1;
+    toc.push({ title: `Anexos (${totalAnexos} arquivo(s))`, page: indexAnnexosPageNum });
 
-    if (!bytes) {
-      coverPage.drawText("Arquivo nao disponivel no servidor (conteudo nao armazenado).", {
-        x: ML, y: PH - 140, size: 10, font: ctx.regular, color: C_GRAY,
-      });
-    } else {
-      // Image page
-      const imgPage = doc.addPage([PW, PH]);
-      await drawImageOnPage(imgPage, doc, bytes, att.mimeType, ctx.regular);
+    // Pre-scan: compute each annex's starting page number.
+    // Actual annexes begin one page after the Índice de Anexos page.
+    const tocAnexos: Array<{ title: string; page: number }> = [];
+    let nextAnnexPage = indexAnnexosPageNum + 1;
+
+    for (const att of imageAttachments) {
+      tocAnexos.push({ title: att.nomeOriginal, page: nextAnnexPage });
+      const bytes = lerArquivo(att);
+      nextAnnexPage += bytes ? 2 : 1; // cover + optional image page
     }
-  }
 
-  // ── Append PDF attachments ────────────────────────────────────────────
-  for (const att of pdfAttachmentsToMerge) {
-    const bytes = lerArquivo(att);
-    if (!bytes) continue;
-    try {
-      const srcDoc = await PDFDocument.load(bytes);
-      const indices = srcDoc.getPageIndices();
-      // Cover page for this attachment
-      const coverPage = doc.addPage([PW, PH]);
-      coverPage.drawRectangle({ x: 0, y: PH - 80, width: PW, height: 80, color: C_BLUE });
-      coverPage.drawText("ANEXO — DOCUMENTO COMPROBATORIO", { x: ML, y: PH - 36, size: 14, font: ctx.bold, color: C_WHITE });
-      coverPage.drawText(sanitize(att.title), { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
-      coverPage.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
-      // Copy all pages from the attachment
-      const copiedPages = await doc.copyPages(srcDoc, indices);
+    // Pre-load PDFs once (avoids double loading)
+    const cachedPdfs: Array<{
+      att: { title: string; nomeOriginal: string; caminho: string; conteudo: Buffer | null };
+      srcDoc: PDFDocument;
+    }> = [];
+    for (const att of pdfAttachmentsToMerge) {
+      const bytes = lerArquivo(att);
+      if (!bytes) continue;
+      try {
+        const srcDoc = await PDFDocument.load(bytes);
+        tocAnexos.push({ title: att.nomeOriginal, page: nextAnnexPage });
+        nextAnnexPage += 1 + srcDoc.getPageCount(); // cover + content pages
+        cachedPdfs.push({ att, srcDoc });
+      } catch { /* skip corrupt or unreadable PDF */ }
+    }
+
+    // Add Índice de Anexos page (before actual annexes)
+    const indexAnnexosPage = doc.addPage([PW, PH]);
+    drawAnexosIndexPage(indexAnnexosPage, tocAnexos, ctx.regular, ctx.bold, indexAnnexosPageNum);
+
+    // ── Append image attachments ──────────────────────────────────────────
+    for (const att of imageAttachments) {
+      const bytes = lerArquivo(att);
+      const attCover = doc.addPage([PW, PH]);
+      attCover.drawRectangle({ x: 0, y: PH - 80, width: PW, height: 80, color: C_BLUE });
+      attCover.drawText("ANEXO — IMAGEM COMPROBATORIA", { x: ML, y: PH - 36, size: 14, font: ctx.bold, color: C_WHITE });
+      attCover.drawText(sanitize(att.title), { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
+      attCover.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
+      if (!bytes) {
+        attCover.drawText("Arquivo nao disponivel no servidor (conteudo nao armazenado).", {
+          x: ML, y: PH - 140, size: 10, font: ctx.regular, color: C_GRAY,
+        });
+      } else {
+        const imgPage = doc.addPage([PW, PH]);
+        await drawImageOnPage(imgPage, doc, bytes, att.mimeType, ctx.regular);
+      }
+    }
+
+    // ── Append PDF attachments (using pre-loaded cache) ───────────────────
+    for (const { att, srcDoc } of cachedPdfs) {
+      const attCover = doc.addPage([PW, PH]);
+      attCover.drawRectangle({ x: 0, y: PH - 80, width: PW, height: 80, color: C_BLUE });
+      attCover.drawText("ANEXO — DOCUMENTO COMPROBATORIO", { x: ML, y: PH - 36, size: 14, font: ctx.bold, color: C_WHITE });
+      attCover.drawText(sanitize(att.title), { x: ML, y: PH - 55, size: 10, font: ctx.regular, color: rgb(0.8, 0.9, 1.0) });
+      attCover.drawText(sanitize(att.nomeOriginal), { x: ML, y: PH - 70, size: 9, font: ctx.regular, color: rgb(0.7, 0.85, 1.0) });
+      const copiedPages = await doc.copyPages(srcDoc, srcDoc.getPageIndices());
       copiedPages.forEach(p => doc.addPage(p));
-    } catch { /* skip corrupt or unreadable PDF */ }
+    }
   }
 
   // ── Insert cover at position 0, then TOC at position 1 ───────────────
