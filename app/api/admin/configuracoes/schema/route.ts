@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { parseConnectionUrl } from "@/lib/db-url";
-import * as mariadb from "mariadb";
+import mysql from "mysql2/promise";
 
 const DROP_STATEMENTS = [
   "SET FOREIGN_KEY_CHECKS = 0",
@@ -290,18 +290,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: (e as Error).message }, { status: 422 });
   }
 
-  let conn: mariadb.Connection | undefined;
+  let conn: mysql.Connection | undefined;
   const executados: string[] = [];
   const erros: string[] = [];
 
   try {
-    conn = await mariadb.createConnection({
-      host:     parts.host,
-      port:     parts.port,
-      database: parts.database,
-      user:     parts.user,
-      password: senha,
+    conn = await mysql.createConnection({
+      host:           parts.host,
+      port:           parts.port,
+      database:       parts.database,
+      user:           parts.user,
+      password:       senha,
       connectTimeout: 8000,
+      multipleStatements: false,
     });
 
     if (acao === "RECRIAR") {
@@ -316,19 +317,22 @@ export async function POST(req: NextRequest) {
         await conn.query(stmt);
         executados.push(`OK: ${stmt.trim().split("\n")[0].slice(0, 70)}`);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (
+        const msg  = err instanceof Error ? err.message : String(err);
+        const code = (err as { code?: string }).code ?? "";
+        const errno = (err as { errno?: number }).errno ?? 0;
+        const isDuplicate =
+          code === "ER_DUP_FIELDNAME" ||
+          code === "ER_DUP_KEY" ||
+          code === "ER_FK_DUP_NAME" ||
+          code === "ER_DUP_CONSTRAINT_NAME" ||
+          errno === 1060 ||
+          errno === 1061 ||
+          errno === 1826 ||
           msg.includes("Duplicate key name") ||
           msg.includes("Duplicate column name") ||
           msg.includes("Duplicate foreign key") ||
-          msg.includes("already exists") ||
-          msg.includes("no: 1060") ||
-          msg.includes("no: 1826") ||
-          msg.includes("errno: 121") ||
-          msg.includes("ER_DUP_FIELDNAME") ||
-          msg.includes("ER_DUP_KEY") ||
-          msg.includes("ER_FK_DUP_NAME")
-        ) {
+          msg.includes("already exists");
+        if (isDuplicate) {
           executados.push(`SKIP (já existe): ${stmt.trim().split("\n")[0].slice(0, 55)}`);
         } else {
           erros.push(msg);
