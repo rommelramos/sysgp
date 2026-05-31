@@ -204,23 +204,24 @@ const CREATE_STATEMENTS = [
     PRIMARY KEY (id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  // Migração aditiva: adiciona colunas em tabelas pré-existentes (idempotente com IF NOT EXISTS).
-  `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_ser_coordenador TINYINT(1) NOT NULL DEFAULT 0`,
-  `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS confirmado TINYINT(1) NOT NULL DEFAULT 1`,
-  `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS convite_id BIGINT NULL`,
-  `ALTER TABLE projetos ADD COLUMN IF NOT EXISTS instituicao_execucao VARCHAR(255) NULL`,
-  `ALTER TABLE projetos ADD COLUMN IF NOT EXISTS instituicao_financiadora VARCHAR(255) NULL`,
-  `ALTER TABLE projetos ADD COLUMN IF NOT EXISTS area_conhecimento VARCHAR(255) NULL`,
-  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS data_inicio_bolsa DATE NULL`,
-  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS data_fim_bolsa DATE NULL`,
-  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS carga_horaria INT NULL`,
-  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS resultados_esperados TEXT NULL`,
-  `ALTER TABLE projeto_membros ADD COLUMN IF NOT EXISTS cronograma TEXT NULL`,
-  `ALTER TABLE atividades ADD COLUMN IF NOT EXISTS meta_id BIGINT NULL`,
-  `ALTER TABLE atividades ADD COLUMN IF NOT EXISTS concluida TINYINT(1) NOT NULL DEFAULT 0`,
-  `ALTER TABLE acao_documentos ADD COLUMN IF NOT EXISTS conteudo LONGBLOB NULL`,
-  `ALTER TABLE acao_documentos ADD COLUMN IF NOT EXISTS rotulo VARCHAR(255) NULL`,
-  `ALTER TABLE acao_documentos ADD COLUMN IF NOT EXISTS detalhe TEXT NULL`,
+  // Migração aditiva: adiciona colunas em tabelas pré-existentes.
+  // Erros de coluna duplicada (1060) são ignorados pelo catch abaixo.
+  `ALTER TABLE usuarios ADD COLUMN pode_ser_coordenador TINYINT(1) NOT NULL DEFAULT 0`,
+  `ALTER TABLE usuarios ADD COLUMN confirmado TINYINT(1) NOT NULL DEFAULT 1`,
+  `ALTER TABLE usuarios ADD COLUMN convite_id BIGINT NULL`,
+  `ALTER TABLE projetos ADD COLUMN instituicao_execucao VARCHAR(255) NULL`,
+  `ALTER TABLE projetos ADD COLUMN instituicao_financiadora VARCHAR(255) NULL`,
+  `ALTER TABLE projetos ADD COLUMN area_conhecimento VARCHAR(255) NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN data_inicio_bolsa DATE NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN data_fim_bolsa DATE NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN carga_horaria INT NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN resultados_esperados TEXT NULL`,
+  `ALTER TABLE projeto_membros ADD COLUMN cronograma TEXT NULL`,
+  `ALTER TABLE atividades ADD COLUMN meta_id BIGINT NULL`,
+  `ALTER TABLE atividades ADD COLUMN concluida TINYINT(1) NOT NULL DEFAULT 0`,
+  `ALTER TABLE acao_documentos ADD COLUMN conteudo LONGBLOB NULL`,
+  `ALTER TABLE acao_documentos ADD COLUMN rotulo VARCHAR(255) NULL`,
+  `ALTER TABLE acao_documentos ADD COLUMN detalhe TEXT NULL`,
 
   // Foreign keys — duplicatas ignoradas pelo catch (código 1826).
   `ALTER TABLE usuarios ADD CONSTRAINT fk_usuarios_supervisor
